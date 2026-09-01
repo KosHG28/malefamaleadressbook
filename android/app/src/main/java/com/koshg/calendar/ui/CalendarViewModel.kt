@@ -20,21 +20,10 @@ import java.util.UUID
 data class CalendarUiState(
     val viewMonth: YearMonth = YearMonth.now(),
     val selectedDate: LocalDate = LocalDate.now(),
-    val searchQuery: String = "",
     val events: List<CalendarEvent> = emptyList()
 ) {
-    val filteredEvents: List<CalendarEvent>
-        get() = if (searchQuery.isBlank()) {
-            events
-        } else {
-            events.filter {
-                it.title.contains(searchQuery, ignoreCase = true) ||
-                    it.notes.contains(searchQuery, ignoreCase = true)
-            }
-        }
-
     val eventsByDate: Map<String, List<CalendarEvent>>
-        get() = filteredEvents
+        get() = events
             .sortedWith(compareBy({ !it.allDay }, { it.startTime ?: "" }))
             .groupBy { it.date }
 
@@ -46,12 +35,11 @@ class CalendarViewModel(private val repository: EventRepository) : ViewModel() {
 
     private val viewMonth = MutableStateFlow(YearMonth.now())
     private val selectedDate = MutableStateFlow(LocalDate.now())
-    private val searchQuery = MutableStateFlow("")
 
     val uiState: StateFlow<CalendarUiState> = combine(
-        viewMonth, selectedDate, searchQuery, repository.allEvents
-    ) { month, selected, query, events ->
-        CalendarUiState(month, selected, query, events)
+        viewMonth, selectedDate, repository.allEvents
+    ) { month, selected, events ->
+        CalendarUiState(month, selected, events)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -80,10 +68,6 @@ class CalendarViewModel(private val repository: EventRepository) : ViewModel() {
     fun selectDate(date: LocalDate) {
         selectedDate.value = date
         viewMonth.value = YearMonth.from(date)
-    }
-
-    fun setSearchQuery(query: String) {
-        searchQuery.value = query
     }
 
     fun saveEvent(event: CalendarEvent) {

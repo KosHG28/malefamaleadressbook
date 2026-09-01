@@ -14,8 +14,8 @@ android {
         // Android 16 (API 36) only, by design — no back-compat branches to maintain.
         minSdk = 36
         targetSdk = 36
-        versionCode = 9
-        versionName = "3.0.6"
+        versionCode = 10
+        versionName = "3.0.7"
     }
 
     buildTypes {
@@ -64,6 +64,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.core.splashscreen)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

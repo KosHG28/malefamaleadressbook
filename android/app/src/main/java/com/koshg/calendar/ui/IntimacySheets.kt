@@ -349,7 +349,7 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
 }
 
 @Composable
-private fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Unit) {
+internal fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Unit) {
     val haptics = LocalHaptics.current
     val appColors = appColors()
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

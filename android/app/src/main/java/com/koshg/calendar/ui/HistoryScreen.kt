@@ -11,19 +11,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,7 +26,6 @@ import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
-import com.koshg.calendar.security.AppLockPreferences
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.util.monthShortLabel
 import com.koshg.calendar.util.shortDateLabel
@@ -83,7 +77,6 @@ fun HistoryScreen(
                 item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
                 item { ProposalStatsSection(proposalEntries) }
                 item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
-                item { SecuritySection() }
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
@@ -91,7 +84,7 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     val appColors = appColors()
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -270,38 +263,6 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SecuritySection() {
-    val appColors = appColors()
-    val context = LocalContext.current
-    val prefs = remember { AppLockPreferences(context) }
-    var enabled by remember { mutableStateOf(prefs.isEnabled) }
-
-    SectionCard(title = "Безопасность") {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "Блокировка приложения",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = appColors.textPrimary
-                )
-                Text(
-                    "Биометрия или PIN/пароль устройства при запуске",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = appColors.textSecondary
-                )
-            }
-            Switch(
-                checked = enabled,
-                onCheckedChange = {
-                    enabled = it
-                    prefs.isEnabled = it
-                }
-            )
         }
     }
 }

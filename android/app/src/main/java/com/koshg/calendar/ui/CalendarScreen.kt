@@ -16,9 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -84,8 +83,8 @@ fun CalendarScreen(
     val haptics = LocalHaptics.current
     val appColors = appColors()
 
-    var searchActive by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
 
     val periodByDate = remember(cycleState.periods) { cycleState.periods.associateBy { it.startDate } }
@@ -120,19 +119,20 @@ fun CalendarScreen(
             ) {
                 CalendarHeader(
                     stats = cycleState.stats,
-                    todayPhase = cyclePhaseFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays),
-                    searchActive = searchActive,
-                    searchQuery = uiState.searchQuery,
-                    onSearchQueryChange = viewModel::setSearchQuery,
-                    onToggleSearch = {
-                        haptics.perform(HapticEvent.Tap)
-                        searchActive = !searchActive
-                        if (!searchActive) viewModel.setSearchQuery("")
-                    },
+                    todayPhase = cyclePhaseFor(
+                        LocalDate.now(),
+                        cycleState.periods,
+                        cycleState.stats.appliedMarginDays,
+                        cycleState.lutealPhaseDays
+                    ),
                     onToday = { haptics.perform(HapticEvent.Tap); viewModel.goToToday() },
                     onOpenHistory = {
                         haptics.perform(HapticEvent.Tap)
                         showHistory = true
+                    },
+                    onOpenSettings = {
+                        haptics.perform(HapticEvent.Tap)
+                        showSettings = true
                     }
                 )
 
@@ -177,6 +177,7 @@ fun CalendarScreen(
                             eventsByDate = uiState.eventsByDate,
                             periods = cycleState.periods,
                             marginDays = cycleState.stats.appliedMarginDays,
+                            lutealPhaseDays = cycleState.lutealPhaseDays,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
                             masturbationDates = masturbationDates,
@@ -220,6 +221,14 @@ fun CalendarScreen(
             proposalEntries = intimacyState.proposalEntries,
             masturbationEntries = intimacyState.masturbationEntries,
             onClose = { showHistory = false }
+        )
+    }
+
+    if (showSettings) {
+        SettingsScreen(
+            lutealPhaseDays = cycleState.lutealPhaseDays,
+            onLutealPhaseDaysChange = cycleViewModel::setLutealPhaseDays,
+            onClose = { showSettings = false }
         )
     }
 
@@ -348,12 +357,9 @@ fun CalendarScreen(
 private fun CalendarHeader(
     stats: CycleStats,
     todayPhase: CyclePhase?,
-    searchActive: Boolean,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    onToggleSearch: () -> Unit,
     onToday: () -> Unit,
-    onOpenHistory: () -> Unit
+    onOpenHistory: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val appColors = appColors()
     val today = LocalDate.now()
@@ -363,94 +369,70 @@ private fun CalendarHeader(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        if (searchActive) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    placeholder = { Text("Поиск событий…", color = appColors.textSecondary) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = appColors.textPrimary,
-                        unfocusedTextColor = appColors.textPrimary,
-                        cursorColor = appColors.accent
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onToggleSearch) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть поиск", tint = appColors.textPrimary)
-                }
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onOpenHistory) {
-                    Icon(Icons.Default.History, contentDescription = "История и тренды", tint = appColors.textSecondary)
-                }
-                Text(
-                    text = "КАЛЕНДАРЬ",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                    textAlign = TextAlign.Center,
-                    color = appColors.textSecondary,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onToday) {
-                    Icon(Icons.Default.Today, contentDescription = "Сегодня", tint = appColors.textSecondary)
-                }
-                IconButton(onClick = onToggleSearch) {
-                    Icon(Icons.Default.Search, contentDescription = "Поиск", tint = appColors.textSecondary)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = stats.currentCycleDay?.let { "Цикл, день $it" } ?: "Цикл",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = appColors.textPrimary
-                )
-                if (todayPhase != null) {
-                    Text(
-                        text = "  ${todayPhase.label}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = appColors.colorFor(todayPhase),
-                        modifier = Modifier.padding(bottom = 3.dp)
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            val subtitle = when {
-                stats.predictedNextPeriodEarliest == null || stats.predictedNextPeriodLatest == null ->
-                    "Добавьте дату месячных, чтобы увидеть прогноз"
-                else -> {
-                    val earliestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodEarliest)
-                    val latestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodLatest)
-                    when {
-                        latestDays < 0 -> "Месячные уже наступили"
-                        earliestDays <= 0 -> "Ожидаемый день месячных"
-                        earliestDays == latestDays -> "Следующие месячные через $earliestDays дн."
-                        else -> "Следующие месячные через $earliestDays–$latestDays дн."
-                    }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onOpenHistory) {
+                Icon(Icons.Default.History, contentDescription = "История и тренды", tint = appColors.textSecondary)
             }
             Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = appColors.textSecondary
+                text = "КАЛЕНДАРЬ",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp,
+                textAlign = TextAlign.Center,
+                color = appColors.textSecondary,
+                modifier = Modifier.weight(1f)
             )
-            if (stats.isIrregular) {
-                Spacer(Modifier.height(2.dp))
+            IconButton(onClick = onToday) {
+                Icon(Icons.Default.Today, contentDescription = "Сегодня", tint = appColors.textSecondary)
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = appColors.textSecondary)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = stats.currentCycleDay?.let { "Цикл, день $it" } ?: "Цикл",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = appColors.textPrimary
+            )
+            if (todayPhase != null) {
                 Text(
-                    text = "Цикл нерегулярный — точность прогноза по календарю снижена",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = appColors.warning
+                    text = "  ${todayPhase.label}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = appColors.colorFor(todayPhase),
+                    modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
+        }
+        Spacer(Modifier.height(4.dp))
+        val subtitle = when {
+            stats.predictedNextPeriodEarliest == null || stats.predictedNextPeriodLatest == null ->
+                "Добавьте дату месячных, чтобы увидеть прогноз"
+            else -> {
+                val earliestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodEarliest)
+                val latestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodLatest)
+                when {
+                    latestDays < 0 -> "Месячные уже наступили"
+                    earliestDays <= 0 -> "Ожидаемый день месячных"
+                    earliestDays == latestDays -> "Следующие месячные через $earliestDays дн."
+                    else -> "Следующие месячные через $earliestDays–$latestDays дн."
+                }
+            }
+        }
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = appColors.textSecondary
+        )
+        if (stats.isIrregular) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "Цикл нерегулярный — точность прогноза по календарю снижена",
+                style = MaterialTheme.typography.bodySmall,
+                color = appColors.warning
+            )
         }
     }
 }
@@ -533,6 +515,7 @@ private fun MonthGrid(
     eventsByDate: Map<String, List<CalendarEvent>>,
     periods: List<PeriodEntry>,
     marginDays: Int,
+    lutealPhaseDays: Int,
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
@@ -548,10 +531,10 @@ private fun MonthGrid(
     // resize the grid.
     val weeks = 6
 
-    val gridDays = remember(viewMonth, periods, marginDays) {
+    val gridDays = remember(viewMonth, periods, marginDays, lutealPhaseDays) {
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
-            GridDayInfo(date, cyclePhaseFor(date, periods, marginDays), date.isAfter(today))
+            GridDayInfo(date, cyclePhaseFor(date, periods, marginDays, lutealPhaseDays), date.isAfter(today))
         }
     }
 
