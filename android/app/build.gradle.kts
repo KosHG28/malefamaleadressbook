@@ -7,14 +7,15 @@ plugins {
 
 android {
     namespace = "com.koshg.calendar"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.koshg.calendar"
-        minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Android 16 (API 36) only, by design — no back-compat branches to maintain.
+        minSdk = 36
+        targetSdk = 36
+        versionCode = 2
+        versionName = "2.0"
     }
 
     buildTypes {

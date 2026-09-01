@@ -19,3 +19,14 @@ fun dayAgendaLabel(date: LocalDate): String {
     val month = date.month.getDisplayName(TextStyle.FULL, RUSSIAN_LOCALE)
     return "$dayOfWeek, ${date.dayOfMonth} $month"
 }
+
+/** "12 марта" — genitive month name, no year. */
+fun shortDateLabel(date: LocalDate): String {
+    val month = date.month.getDisplayName(TextStyle.FULL, RUSSIAN_LOCALE)
+    return "${date.dayOfMonth} $month"
+}
+
+/** "12 марта 2026". */
+fun fullDateLabel(date: LocalDate): String = "${shortDateLabel(date)} ${date.year}"
+
+fun String.toLocalDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()

@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
@@ -31,19 +33,42 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.data.CalendarEvent
+import com.koshg.calendar.data.PeriodEntry
+import com.koshg.calendar.haptics.HapticEvent
+import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.WEEKDAY_SHORT_NAMES
 import com.koshg.calendar.util.dayAgendaLabel
+import com.koshg.calendar.util.isFertileDay
+import com.koshg.calendar.util.isLoggedPeriodDay
+import com.koshg.calendar.util.isOvulationDay
+import com.koshg.calendar.util.isPredictedPeriodDay
 import com.koshg.calendar.util.monthYearLabel
 import java.time.LocalDate
 import java.time.YearMonth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(viewModel: CalendarViewModel) {
+fun CalendarScreen(
+    viewModel: CalendarViewModel,
+    cycleViewModel: CycleViewModel,
+    intimacyViewModel: IntimacyViewModel
+) {
     val uiState by viewModel.uiState.collectAsState()
+    val cycleState by cycleViewModel.uiState.collectAsState()
+    val intimacyState by intimacyViewModel.uiState.collectAsState()
+    val haptics = LocalHaptics.current
     var searchActive by remember { mutableStateOf(false) }
     var editingEvent by remember { mutableStateOf<CalendarEvent?>(null) }
     var showAddNewFor by remember { mutableStateOf<LocalDate?>(null) }
+
+    val intimacyDates = remember(intimacyState) {
+        intimacyState.sexEntries.map { it.date }.toSet()
+    }
+    val proposalDates = remember(intimacyState) {
+        intimacyState.proposalEntries.map { it.date }.toSet()
+    }
 
     Scaffold(
         topBar = {
@@ -62,7 +87,10 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddNewFor = uiState.selectedDate }) {
+            FloatingActionButton(onClick = {
+                haptics.perform(HapticEvent.Select)
+                showAddNewFor = uiState.selectedDate
+            }) {
                 Icon(Icons.Default.Add, contentDescription = "Добавить событие")
             }
         }
@@ -77,7 +105,14 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
                 viewMonth = uiState.viewMonth,
                 selectedDate = uiState.selectedDate,
                 eventsByDate = uiState.eventsByDate,
-                onDayClick = viewModel::selectDate
+                periods = cycleState.periods,
+                cycleStats = cycleState.stats,
+                intimacyDates = intimacyDates,
+                proposalDates = proposalDates,
+                onDayClick = { date ->
+                    haptics.perform(HapticEvent.Tap)
+                    viewModel.selectDate(date)
+                }
             )
             HorizontalDivider()
             AgendaList(
@@ -95,6 +130,7 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
             event = null,
             onDismiss = { showAddNewFor = null },
             onSave = { event ->
+                haptics.perform(HapticEvent.Confirm)
                 viewModel.saveEvent(event)
                 showAddNewFor = null
             },
@@ -108,10 +144,12 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
             event = event,
             onDismiss = { editingEvent = null },
             onSave = { updated ->
+                haptics.perform(HapticEvent.Confirm)
                 viewModel.saveEvent(updated)
                 editingEvent = null
             },
             onDelete = {
+                haptics.perform(HapticEvent.Delete)
                 viewModel.deleteEvent(event)
                 editingEvent = null
             }
@@ -204,6 +242,10 @@ private fun MonthGrid(
     viewMonth: YearMonth,
     selectedDate: LocalDate,
     eventsByDate: Map<String, List<CalendarEvent>>,
+    periods: List<PeriodEntry>,
+    cycleStats: CycleStats,
+    intimacyDates: Set<String>,
+    proposalDates: Set<String>,
     onDayClick: (LocalDate) -> Unit
 ) {
     val firstOfMonth = viewMonth.atDay(1)
@@ -216,12 +258,19 @@ private fun MonthGrid(
             Row(modifier = Modifier.fillMaxWidth()) {
                 for (dow in 0 until 7) {
                     val date = gridStart.plusDays((week * 7 + dow).toLong())
+                    val dateKey = date.toString()
                     DayCell(
                         date = date,
                         inCurrentMonth = YearMonth.from(date) == viewMonth,
                         isToday = date == today,
                         isSelected = date == selectedDate,
-                        dayEvents = eventsByDate[date.toString()].orEmpty(),
+                        dayEvents = eventsByDate[dateKey].orEmpty(),
+                        isPeriodDay = isLoggedPeriodDay(periods, date),
+                        isPredictedPeriodDay = isPredictedPeriodDay(cycleStats, date),
+                        isFertileDay = isFertileDay(cycleStats, date),
+                        isOvulationDay = isOvulationDay(cycleStats, date),
+                        hasIntimacy = dateKey in intimacyDates,
+                        hasProposal = dateKey in proposalDates,
                         onClick = { onDayClick(date) },
                         modifier = Modifier.weight(1f)
                     )
@@ -238,11 +287,27 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     dayEvents: List<CalendarEvent>,
+    isPeriodDay: Boolean,
+    isPredictedPeriodDay: Boolean,
+    isFertileDay: Boolean,
+    isOvulationDay: Boolean,
+    hasIntimacy: Boolean,
+    hasProposal: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val background = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val borderColor = if (isToday) MaterialTheme.colorScheme.primary else Color.Transparent
+    val appColors = appColors()
+    val background = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
+        isPeriodDay -> appColors.periodContainer
+        isFertileDay -> appColors.fertileContainer
+        else -> Color.Transparent
+    }
+    val borderColor = when {
+        isToday -> MaterialTheme.colorScheme.primary
+        isPredictedPeriodDay -> appColors.period.copy(alpha = 0.5f)
+        else -> Color.Transparent
+    }
     val contentAlpha = if (inCurrentMonth) 1f else 0.35f
 
     Column(
@@ -256,14 +321,39 @@ private fun DayCell(
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = date.dayOfMonth.toString(),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            if (isOvulationDay) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(appColors.ovulation.copy(alpha = 0.35f))
+                )
+            }
+            Text(
+                text = date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (isToday || isOvulationDay) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+            )
+        }
         Spacer(Modifier.height(2.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (hasIntimacy) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = appColors.intimacy,
+                    modifier = Modifier.size(9.dp)
+                )
+            } else if (hasProposal) {
+                Icon(
+                    Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    tint = appColors.proposal,
+                    modifier = Modifier.size(9.dp)
+                )
+            }
             dayEvents.take(3).forEach { evt ->
                 Box(
                     modifier = Modifier

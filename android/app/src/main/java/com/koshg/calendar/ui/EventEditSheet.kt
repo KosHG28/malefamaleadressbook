@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.data.CalendarEvent
 import com.koshg.calendar.data.EVENT_COLOR_PALETTE
+import com.koshg.calendar.haptics.HapticEvent
+import com.koshg.calendar.haptics.LocalHaptics
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +44,7 @@ fun EventEditSheet(
     onDelete: (() -> Unit)?
 ) {
     val context = LocalContext.current
+    val haptics = LocalHaptics.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var title by remember { mutableStateOf(event?.title ?: "") }
@@ -90,7 +93,10 @@ fun EventEditSheet(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = allDay, onCheckedChange = { allDay = it })
+                Switch(checked = allDay, onCheckedChange = {
+                    haptics.perform(HapticEvent.Toggle)
+                    allDay = it
+                })
                 Spacer(Modifier.width(8.dp))
                 Text("Весь день")
             }
