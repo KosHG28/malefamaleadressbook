@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.CalendarApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/calendar_primary</item>
+        <item name="android:windowBackground">@color/calendar_background</item>
+    </style>
+</resources>
