@@ -8,7 +8,7 @@ import android.view.animation.AccelerateInterpolator
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.core.animation.doOnEnd
-import androidx.core.splashscreen.installSplashScreen
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import com.koshg.calendar.data.AppDatabase
 import com.koshg.calendar.data.CycleRepository
