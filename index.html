@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Календарь</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon">📅</span>
+        <h1>Календарь</h1>
+      </div>
+      <div class="nav">
+        <button id="prevBtn" class="icon-btn" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
+        <button id="todayBtn" class="today-btn">Сегодня</button>
+        <button id="nextBtn" class="icon-btn" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+        <h2 id="monthLabel" class="month-label"></h2>
+      </div>
+      <div class="actions">
+        <input id="searchInput" type="search" placeholder="Поиск событий…" />
+        <button id="addEventBtn" class="primary-btn">+ Событие</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="calendar-wrap">
+        <div class="weekdays" id="weekdays"></div>
+        <div class="grid" id="grid"></div>
+      </section>
+
+      <aside class="sidebar" id="sidebar">
+        <h3 id="sidebarTitle">События</h3>
+        <div id="agendaList" class="agenda-list"></div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Модальное окно события -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h3 id="modalTitle">Новое событие</h3>
+        <button id="closeModalBtn" class="icon-btn" aria-label="Закрыть">×</button>
+      </div>
+      <form id="eventForm" class="modal-body">
+        <input type="hidden" id="eventId" />
+
+        <label class="field">
+          <span>Название</span>
+          <input type="text" id="eventTitle" required maxlength="120" placeholder="Например, встреча с командой" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Дата</span>
+            <input type="date" id="eventDate" required />
+          </label>
+          <label class="field checkbox-field">
+            <input type="checkbox" id="eventAllDay" />
+            <span>Весь день</span>
+          </label>
+        </div>
+
+        <div class="field-row" id="timeRow">
+          <label class="field">
+            <span>Начало</span>
+            <input type="time" id="eventStart" value="10:00" />
+          </label>
+          <label class="field">
+            <span>Конец</span>
+            <input type="time" id="eventEnd" value="11:00" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Цвет</span>
+          <div class="color-picker" id="colorPicker">
+            <button type="button" class="color-swatch" data-color="#5b8def" style="background:#5b8def"></button>
+            <button type="button" class="color-swatch" data-color="#e0574c" style="background:#e0574c"></button>
+            <button type="button" class="color-swatch" data-color="#39b370" style="background:#39b370"></button>
+            <button type="button" class="color-swatch" data-color="#e6a23c" style="background:#e6a23c"></button>
+            <button type="button" class="color-swatch" data-color="#9b59b6" style="background:#9b59b6"></button>
+            <button type="button" class="color-swatch" data-color="#33bdca" style="background:#33bdca"></button>
+          </div>
+          <input type="hidden" id="eventColor" value="#5b8def" />
+        </label>
+
+        <label class="field">
+          <span>Заметка</span>
+          <textarea id="eventNotes" rows="3" maxlength="500" placeholder="Дополнительные детали…"></textarea>
+        </label>
+
+        <div class="modal-footer">
+          <button type="button" id="deleteEventBtn" class="danger-btn hidden">Удалить</button>
+          <div class="spacer"></div>
+          <button type="button" id="cancelBtn" class="ghost-btn">Отмена</button>
+          <button type="submit" class="primary-btn">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
