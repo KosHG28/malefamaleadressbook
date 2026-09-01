@@ -16,10 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
@@ -35,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -361,24 +357,27 @@ private fun CalendarHeader(
                 TextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,
-                    placeholder = { Text("Поиск событий…") },
+                    placeholder = { Text("Поиск событий…", color = appColors.textSecondary) },
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
                         unfocusedContainerColor = Color.Transparent,
                         focusedContainerColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent
+                        focusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = appColors.textPrimary,
+                        unfocusedTextColor = appColors.textPrimary,
+                        cursorColor = appColors.accent
                     ),
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onToggleSearch) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть поиск")
+                    Icon(Icons.Default.Close, contentDescription = "Закрыть поиск", tint = appColors.textPrimary)
                 }
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onOpenHistory) {
-                    Icon(Icons.Default.History, contentDescription = "История и тренды")
+                    Icon(Icons.Default.History, contentDescription = "История и тренды", tint = appColors.textSecondary)
                 }
                 Text(
                     text = "КАЛЕНДАРЬ",
@@ -390,10 +389,10 @@ private fun CalendarHeader(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onToday) {
-                    Icon(Icons.Default.Today, contentDescription = "Сегодня")
+                    Icon(Icons.Default.Today, contentDescription = "Сегодня", tint = appColors.textSecondary)
                 }
                 IconButton(onClick = onToggleSearch) {
-                    Icon(Icons.Default.Search, contentDescription = "Поиск")
+                    Icon(Icons.Default.Search, contentDescription = "Поиск", tint = appColors.textSecondary)
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -450,7 +449,7 @@ private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit)
     val appColors = appColors()
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц")
+            Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц", tint = appColors.textPrimary)
         }
         Spacer(Modifier.width(4.dp))
         Text(
@@ -462,7 +461,7 @@ private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit)
         )
         Spacer(Modifier.width(4.dp))
         IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronRight, contentDescription = "Следующий месяц")
+            Icon(Icons.Default.ChevronRight, contentDescription = "Следующий месяц", tint = appColors.textPrimary)
         }
     }
 }
@@ -555,9 +554,9 @@ private fun MonthGrid(
                     val prevInfo = if (dow > 0) gridDays[idx - 1] else null
                     val nextInfo = if (dow < 6) gridDays[idx + 1] else null
 
-                    val mergesWithPrev = prevInfo != null && !info.isFuture && !prevInfo.isFuture &&
+                    val mergesWithPrev = prevInfo != null &&
                         info.phase != null && info.phase == prevInfo.phase
-                    val mergesWithNext = nextInfo != null && !info.isFuture && !nextInfo.isFuture &&
+                    val mergesWithNext = nextInfo != null &&
                         info.phase != null && info.phase == nextInfo.phase
 
                     if (dow > 0) {
@@ -622,26 +621,25 @@ private fun DayCell(
     )
     val pillShape = RoundedCornerShape(percent = 50)
 
-    val solidFill = phase != null && !isFuture
     val phaseColor = phase?.let { appColors.colorFor(it) }
-    val contentAlpha = if (inCurrentMonth) 1f else 0.4f
+    // Every day with a known phase fills solid -- past/today at full strength, future
+    // (predicted) days a shade lighter so the timeline visibly extends forward instead of
+    // stopping at today, while still reading as "not yet actual."
+    val monthAlpha = if (inCurrentMonth) 1f else 0.4f
+    val contentAlpha = monthAlpha * (if (isFuture) 0.55f else 1f)
 
     val textColor = when {
-        solidFill -> Color.White
-        phaseColor != null -> phaseColor
+        phaseColor != null -> Color.White
         else -> appColors.textPrimary
     }
 
     val cellModifier = when {
-        solidFill -> Modifier
-            .clip(runShape)
-            .background(phaseColor!!.copy(alpha = contentAlpha))
         phaseColor != null -> Modifier
-            .clip(pillShape)
-            .dashedRoundedBorder(phaseColor.copy(alpha = contentAlpha), pillShape)
+            .clip(runShape)
+            .background(phaseColor.copy(alpha = contentAlpha))
         else -> Modifier
             .clip(pillShape)
-            .background(appColors.warmSurface.copy(alpha = contentAlpha))
+            .background(appColors.warmSurface.copy(alpha = monthAlpha))
     }
 
     Box(
@@ -658,15 +656,30 @@ private fun DayCell(
                     .matchParentSize()
                     .border(
                         width = 2.dp,
-                        color = if (solidFill) Color.White else appColors.accent,
-                        shape = if (solidFill) runShape else pillShape
+                        color = if (phaseColor != null) Color.White else appColors.accent,
+                        shape = if (phaseColor != null) runShape else pillShape
                     )
             )
         }
+        // A colored ring around the date -- rather than an icon underneath -- flags what
+        // happened that day: sex, an accepted/declined proposal, or masturbation (in that
+        // priority order, since at most one ring fits). Calendar-event colors stay as the
+        // small dots below, since those are a different, possibly-multi-valued kind of marker.
+        val markerColor = when (intimacyMarker) {
+            IntimacyMarker.SEX -> appColors.intimacy
+            IntimacyMarker.PROPOSAL_ACCEPTED -> appColors.proposalAccepted
+            IntimacyMarker.PROPOSAL_DECLINED -> appColors.proposalDeclined
+            IntimacyMarker.NONE -> if (hasMasturbation) appColors.solo else null
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
-                if (isToday) {
-                    DottedRing(color = textColor, size = 24.dp)
+                when {
+                    isToday -> DottedRing(color = markerColor ?: textColor, size = 24.dp)
+                    markerColor != null -> Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .border(1.6.dp, markerColor.copy(alpha = contentAlpha), CircleShape)
+                    )
                 }
                 Text(
                     text = date.dayOfMonth.toString(),
@@ -675,60 +688,18 @@ private fun DayCell(
                     color = textColor.copy(alpha = contentAlpha)
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                when (intimacyMarker) {
-                    IntimacyMarker.SEX -> MarkerBadge(
-                        icon = Icons.Default.Favorite,
-                        tint = appColors.intimacy,
-                        contentDescription = "Была близость"
-                    )
-                    IntimacyMarker.PROPOSAL_ACCEPTED -> MarkerBadge(
-                        icon = Icons.Default.FavoriteBorder,
-                        tint = appColors.proposalAccepted,
-                        contentDescription = "Предложение принято"
-                    )
-                    IntimacyMarker.PROPOSAL_DECLINED -> MarkerBadge(
-                        icon = Icons.Default.FavoriteBorder,
-                        tint = appColors.proposalDeclined,
-                        contentDescription = "Предложение отклонено"
-                    )
-                    IntimacyMarker.NONE -> Unit
-                }
-                if (hasMasturbation) {
-                    MarkerBadge(
-                        icon = Icons.Default.SelfImprovement,
-                        tint = appColors.solo,
-                        contentDescription = "Мастурбация"
-                    )
-                }
-                dayEvents.take(2).forEach { evt ->
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(Color(evt.color))
-                    )
+            if (dayEvents.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    dayEvents.take(2).forEach { evt ->
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(Color(evt.color))
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-/**
- * A small opaque badge behind a marker icon so it stays legible regardless of the cell's own
- * fill — a solid phase color, a dashed outline, or the plain warm surface all sit behind this
- * the same way, and [tint] carries the actual per-status meaning (sex vs. accepted/declined
- * proposal vs. solo) instead of relying on alpha alone to tell them apart.
- */
-@Composable
-private fun MarkerBadge(icon: ImageVector, tint: Color, contentDescription: String) {
-    Box(
-        modifier = Modifier
-            .size(13.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.92f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(8.dp))
     }
 }

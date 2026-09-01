@@ -52,10 +52,11 @@ fun HistoryScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                    Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = appColors.textPrimary)
                 }
                 Text(
                     text = "История и тренды",

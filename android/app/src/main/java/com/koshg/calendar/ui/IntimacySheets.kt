@@ -326,14 +326,23 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
         Spacer(Modifier.height(6.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             Initiator.entries.forEachIndexed { index, entry ->
+                val isSelected = selected == entry
                 SegmentedButton(
-                    selected = selected == entry,
+                    selected = isSelected,
                     onClick = {
                         haptics.perform(HapticEvent.Tap)
                         onSelect(entry)
                     },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = Initiator.entries.size)
-                ) { Text(entry.label) }
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = Initiator.entries.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = appColors.accent,
+                        activeContentColor = Color.White,
+                        activeBorderColor = appColors.accent,
+                        inactiveContainerColor = Color.Transparent,
+                        inactiveContentColor = appColors.textPrimary,
+                        inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
+                    )
+                ) { Text(entry.label, color = if (isSelected) Color.White else appColors.textPrimary) }
             }
         }
     }
