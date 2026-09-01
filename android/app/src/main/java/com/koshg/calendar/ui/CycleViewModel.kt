@@ -13,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.util.UUID
 
 @Immutable
 data class CycleUiState(
@@ -32,12 +30,8 @@ class CycleViewModel(private val repository: CycleRepository) : ViewModel() {
             initialValue = CycleUiState()
         )
 
-    fun addPeriod(date: LocalDate, notes: String) {
-        viewModelScope.launch {
-            repository.save(
-                PeriodEntry(id = UUID.randomUUID().toString(), startDate = date.toString(), notes = notes.trim())
-            )
-        }
+    fun savePeriod(entry: PeriodEntry) {
+        viewModelScope.launch { repository.save(entry) }
     }
 
     fun deletePeriod(entry: PeriodEntry) {

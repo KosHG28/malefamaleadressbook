@@ -9,7 +9,7 @@ import com.koshg.calendar.data.CycleRepository
 import com.koshg.calendar.data.EventRepository
 import com.koshg.calendar.data.IntimacyRepository
 import com.koshg.calendar.haptics.ProvideHaptics
-import com.koshg.calendar.ui.AppRoot
+import com.koshg.calendar.ui.CalendarScreen
 import com.koshg.calendar.ui.CalendarViewModel
 import com.koshg.calendar.ui.CycleViewModel
 import com.koshg.calendar.ui.IntimacyViewModel
@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
 
     private val intimacyViewModel: IntimacyViewModel by viewModels {
         val db = AppDatabase.getInstance(applicationContext)
-        val repository = IntimacyRepository(db.sexDao(), db.proposalDao())
+        val repository = IntimacyRepository(db.sexDao(), db.proposalDao(), db.masturbationDao())
         IntimacyViewModel.factory(repository)
     }
 
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CalendarAppTheme {
                 ProvideHaptics {
-                    AppRoot(calendarViewModel, cycleViewModel, intimacyViewModel)
+                    CalendarScreen(calendarViewModel, cycleViewModel, intimacyViewModel)
                 }
             }
         }

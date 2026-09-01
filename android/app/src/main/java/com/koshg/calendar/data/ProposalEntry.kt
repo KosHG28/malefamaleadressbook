@@ -11,5 +11,7 @@ data class ProposalEntry(
     /** [Initiator.storageValue]. */
     val initiator: String,
     val accepted: Boolean,
+    /** Only meaningful when [accepted] is false. */
+    val declineReason: String,
     val notes: String
 )

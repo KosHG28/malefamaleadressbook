@@ -7,33 +7,48 @@ import androidx.compose.ui.graphics.Color
 
 @Immutable
 data class AppColors(
+    val accent: Color,
     val period: Color,
     val periodContainer: Color,
     val fertile: Color,
     val fertileContainer: Color,
     val ovulation: Color,
     val intimacy: Color,
-    val proposal: Color
+    val proposalAccepted: Color,
+    val proposalDeclined: Color,
+    val solo: Color,
+    val warmBackground: Color,
+    val warmSurface: Color
 )
 
 private val LightAppColors = AppColors(
+    accent = Color(0xFFFF5C8A),
     period = Color(0xFFE0577A),
     periodContainer = Color(0xFFFCE1E9),
     fertile = Color(0xFF2FA88E),
     fertileContainer = Color(0xFFDCF3EC),
     ovulation = Color(0xFF2FA88E),
     intimacy = Color(0xFFE0577A),
-    proposal = Color(0xFF9B6BD6)
+    proposalAccepted = Color(0xFF9B6BD6),
+    proposalDeclined = Color(0xFFB0A9A0),
+    solo = Color(0xFF9B6BD6),
+    warmBackground = Color(0xFFFBF3EA),
+    warmSurface = Color(0xFFFFFDF9)
 )
 
 private val DarkAppColors = AppColors(
+    accent = Color(0xFFFF8FAE),
     period = Color(0xFFF497B4),
     periodContainer = Color(0xFF4A2431),
     fertile = Color(0xFF6FD4B9),
     fertileContainer = Color(0xFF1C3A33),
     ovulation = Color(0xFF6FD4B9),
     intimacy = Color(0xFFF497B4),
-    proposal = Color(0xFFCBA6F5)
+    proposalAccepted = Color(0xFFCBA6F5),
+    proposalDeclined = Color(0xFF8A8078),
+    solo = Color(0xFFCBA6F5),
+    warmBackground = Color(0xFF201C18),
+    warmSurface = Color(0xFF2A2420)
 )
 
 @Composable
