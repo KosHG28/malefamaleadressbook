@@ -1,0 +1,256 @@
+package com.koshg.calendar.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.koshg.calendar.data.MasturbationEntry
+import com.koshg.calendar.data.PeriodEntry
+import com.koshg.calendar.data.ProposalEntry
+import com.koshg.calendar.data.SexEntry
+import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.util.monthShortLabel
+import com.koshg.calendar.util.shortDateLabel
+import com.koshg.calendar.util.toLocalDateOrNull
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
+import kotlin.math.roundToInt
+
+@Composable
+fun HistoryScreen(
+    periods: List<PeriodEntry>,
+    sexEntries: List<SexEntry>,
+    proposalEntries: List<ProposalEntry>,
+    masturbationEntries: List<MasturbationEntry>,
+    onClose: () -> Unit
+) {
+    val appColors = appColors()
+    val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
+
+    Box(modifier = Modifier.fillMaxSize().background(gradient)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                }
+                Text(
+                    text = "История и тренды",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 4.dp)
+                )
+            }
+
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                item { CycleLengthSection(periods) }
+                item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
+                item { ProposalStatsSection(proposalEntries) }
+                item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val appColors = appColors()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = appColors.warmSurface.copy(alpha = 0.65f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatBlock(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun CycleLengthSection(periods: List<PeriodEntry>) {
+    val sortedStarts = remember(periods) {
+        periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
+    }
+    val lengths = remember(sortedStarts) {
+        sortedStarts.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
+    }
+
+    SectionCard(title = "Длина цикла") {
+        if (lengths.isEmpty()) {
+            Text(
+                "Добавьте хотя бы два цикла месячных, чтобы увидеть статистику.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            val average = lengths.average().roundToInt()
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatBlock("Средняя", "$average дн.")
+                StatBlock("Минимум", "${lengths.min()} дн.")
+                StatBlock("Максимум", "${lengths.max()} дн.")
+            }
+            Spacer(Modifier.height(10.dp))
+            sortedStarts.zipWithNext().forEachIndexed { index, (a, b) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "${shortDateLabel(a)} → ${shortDateLabel(b)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text("${lengths[index]} дн.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FrequencySection(title: String, dates: List<String>, color: Color) {
+    val today = LocalDate.now()
+    val months = remember { (5 downTo 0).map { YearMonth.from(today).minusMonths(it.toLong()) } }
+    val counts = remember(dates) {
+        val byMonth = dates.mapNotNull { it.toLocalDateOrNull() }
+            .groupingBy { YearMonth.from(it) }
+            .eachCount()
+        months.map { byMonth[it] ?: 0 }
+    }
+    val maxCount = (counts.maxOrNull() ?: 0).coerceAtLeast(1)
+
+    SectionCard(title = title) {
+        if (counts.all { it == 0 }) {
+            Text(
+                "Записей пока нет.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                months.forEachIndexed { index, month ->
+                    val count = counts[index]
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            monthShortLabel(month),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(56.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(fraction = (count.toFloat() / maxCount).coerceIn(0.05f, 1f))
+                                    .clip(RoundedCornerShape(50))
+                                    .background(color)
+                            )
+                        }
+                        Text(
+                            count.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.width(18.dp),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
+    val appColors = appColors()
+    SectionCard(title = "Предложения") {
+        if (proposals.isEmpty()) {
+            Text(
+                "Записей пока нет.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            val accepted = proposals.count { it.accepted }
+            val total = proposals.size
+            val percent = accepted * 100 / total
+            Text(
+                "Принято $accepted из $total ($percent%)",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                if (accepted > 0) {
+                    Box(
+                        modifier = Modifier
+                            .weight(accepted.toFloat())
+                            .fillMaxHeight()
+                            .background(appColors.proposalAccepted)
+                    )
+                }
+                if (total - accepted > 0) {
+                    Box(
+                        modifier = Modifier
+                            .weight((total - accepted).toFloat())
+                            .fillMaxHeight()
+                            .background(appColors.proposalDeclined)
+                    )
+                }
+            }
+        }
+    }
+}

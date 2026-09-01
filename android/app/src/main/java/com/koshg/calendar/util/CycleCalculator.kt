@@ -33,12 +33,17 @@ enum class CyclePhase(val label: String) {
     LUTEAL("Лютеиновая")
 }
 
+/** Fallback uncertainty band (± days) around the average when there isn't enough history to measure one. */
+private const val FALLBACK_PREDICTION_SPREAD_DAYS = 2
+
 data class CycleStats(
     val averageCycleLengthDays: Int,
     val cycleHistoryCount: Int,
     val latestPeriodStart: LocalDate?,
     val currentCycleDay: Int?,
     val predictedNextPeriod: LocalDate?,
+    val predictedNextPeriodEarliest: LocalDate?,
+    val predictedNextPeriodLatest: LocalDate?,
     val predictedOvulation: LocalDate?,
     val fertileWindowStart: LocalDate?,
     val fertileWindowEnd: LocalDate?
@@ -50,6 +55,8 @@ private val EMPTY_STATS = CycleStats(
     latestPeriodStart = null,
     currentCycleDay = null,
     predictedNextPeriod = null,
+    predictedNextPeriodEarliest = null,
+    predictedNextPeriodLatest = null,
     predictedOvulation = null,
     fertileWindowStart = null,
     fertileWindowEnd = null
@@ -68,20 +75,25 @@ fun computeCycleStats(periods: List<PeriodEntry>, today: LocalDate = LocalDate.n
 
     val latest = sortedDates.last()
     val averageLength = averageCycleLength(sortedDates)
-    val cycleHistoryCount = sortedDates.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
-        .count { it in PLAUSIBLE_CYCLE_LENGTH_RANGE }
+    val plausibleLengths = sortedDates.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
+        .filter { it in PLAUSIBLE_CYCLE_LENGTH_RANGE }
 
     val nextPeriod = latest.plusDays(averageLength.toLong())
     val ovulation = nextPeriod.minusDays(LUTEAL_PHASE_DAYS.toLong())
     val fertileStart = ovulation.minusDays(FERTILE_WINDOW_BEFORE_OVULATION_DAYS.toLong())
     val fertileEnd = ovulation.plusDays(FERTILE_WINDOW_AFTER_OVULATION_DAYS.toLong())
 
+    val earliestLength = plausibleLengths.minOrNull() ?: (averageLength - FALLBACK_PREDICTION_SPREAD_DAYS)
+    val latestLength = plausibleLengths.maxOrNull() ?: (averageLength + FALLBACK_PREDICTION_SPREAD_DAYS)
+
     return CycleStats(
         averageCycleLengthDays = averageLength,
-        cycleHistoryCount = cycleHistoryCount,
+        cycleHistoryCount = plausibleLengths.size,
         latestPeriodStart = latest,
         currentCycleDay = ChronoUnit.DAYS.between(latest, today).toInt() + 1,
         predictedNextPeriod = nextPeriod,
+        predictedNextPeriodEarliest = latest.plusDays(earliestLength.toLong()),
+        predictedNextPeriodLatest = latest.plusDays(latestLength.toLong()),
         predictedOvulation = ovulation,
         fertileWindowStart = fertileStart,
         fertileWindowEnd = fertileEnd

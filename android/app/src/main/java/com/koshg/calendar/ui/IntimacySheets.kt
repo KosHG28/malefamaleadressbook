@@ -1,18 +1,29 @@
 package com.koshg.calendar.ui
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -28,8 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.koshg.calendar.data.CalendarEvent
+import com.koshg.calendar.data.EVENT_COLOR_PALETTE
 import com.koshg.calendar.data.Initiator
 import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
@@ -37,6 +53,7 @@ import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.util.fullDateLabel
 import com.koshg.calendar.util.toLocalDateOrNull
 import java.time.LocalDate
@@ -49,24 +66,296 @@ enum class AddType(val label: String) {
     Masturbation("Мастурбация")
 }
 
+private fun AddType.icon(): ImageVector = when (this) {
+    AddType.Event -> Icons.Default.DateRange
+    AddType.Period -> Icons.Default.WaterDrop
+    AddType.Sex -> Icons.Default.Favorite
+    AddType.Proposal -> Icons.Default.FavoriteBorder
+    AddType.Masturbation -> Icons.Default.SelfImprovement
+}
+
+@Composable
+private fun AddType.chipColor(): Color {
+    val colors = appColors()
+    return when (this) {
+        AddType.Event -> MaterialTheme.colorScheme.primary
+        AddType.Period -> colors.menstrual
+        AddType.Sex -> colors.intimacy
+        AddType.Proposal -> colors.proposalAccepted
+        AddType.Masturbation -> colors.solo
+    }
+}
+
+@Composable
+private fun TypeChipRow(selected: AddType, onSelect: (AddType) -> Unit) {
+    val haptics = LocalHaptics.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AddType.entries.forEach { type ->
+            val color = type.chipColor()
+            val isSelected = type == selected
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (isSelected) color else color.copy(alpha = 0.15f))
+                    .clickable {
+                        haptics.perform(HapticEvent.Tap)
+                        onSelect(type)
+                    }
+                    .padding(horizontal = 14.dp, vertical = 9.dp)
+            ) {
+                Icon(
+                    type.icon(),
+                    contentDescription = null,
+                    tint = if (isSelected) Color.White else color,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    type.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isSelected) Color.White else color
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorPickerRow(selected: Int, onSelect: (Int) -> Unit) {
+    val haptics = LocalHaptics.current
+    Column {
+        Text("Цвет", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            EVENT_COLOR_PALETTE.forEach { c ->
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(c))
+                        .border(
+                            width = if (selected == c) 2.dp else 0.dp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            shape = CircleShape
+                        )
+                        .clickable {
+                            haptics.perform(HapticEvent.Tap)
+                            onSelect(c)
+                        }
+                )
+            }
+        }
+    }
+}
+
+private fun pickTime(context: Context, current: String, onPicked: (String) -> Unit) {
+    val parts = current.split(":").mapNotNull { it.toIntOrNull() }
+    val hour = parts.getOrElse(0) { 10 }
+    val minute = parts.getOrElse(1) { 0 }
+    TimePickerDialog(
+        context,
+        { _, h, m -> onPicked("%02d:%02d".format(h, m)) },
+        hour, minute, true
+    ).show()
+}
+
+/**
+ * Single sheet for creating a new entry of any kind — a row of colored type chips up top swaps
+ * the fields below, so picking what to log and filling it in happens in one open/close instead
+ * of a chooser sheet followed by a second, type-specific one.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddChooserSheet(onDismiss: () -> Unit, onPick: (AddType) -> Unit) {
+fun UnifiedAddSheet(
+    initialType: AddType,
+    initialDate: LocalDate,
+    onDismiss: () -> Unit,
+    onSaveEvent: (CalendarEvent) -> Unit,
+    onSavePeriod: (PeriodEntry) -> Unit,
+    onSaveSex: (SexEntry) -> Unit,
+    onSaveProposal: (ProposalEntry) -> Unit,
+    onSaveMasturbation: (MasturbationEntry) -> Unit
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val haptics = LocalHaptics.current
+    val context = LocalContext.current
+
+    var type by remember { mutableStateOf(initialType) }
+    var date by remember { mutableStateOf(initialDate) }
+    var notes by remember { mutableStateOf("") }
+
+    var title by remember { mutableStateOf("") }
+    var allDay by remember { mutableStateOf(false) }
+    var startTime by remember { mutableStateOf("10:00") }
+    var endTime by remember { mutableStateOf("11:00") }
+    var eventColor by remember { mutableStateOf(EVENT_COLOR_PALETTE.first()) }
+
+    var initiator by remember { mutableStateOf(Initiator.ME) }
+    var orgasmCount by remember { mutableStateOf(0) }
+    var accepted by remember { mutableStateOf(true) }
+    var declineReason by remember { mutableStateOf("") }
+
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Что добавить?", style = MaterialTheme.typography.titleLarge)
-            AddType.entries.forEach { type ->
-                OutlinedButton(onClick = { onPick(type) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(type.label)
+            Text("Новая запись", style = MaterialTheme.typography.titleLarge)
+
+            TypeChipRow(selected = type) { type = it }
+
+            DateField(date) { date = it }
+
+            when (type) {
+                AddType.Event -> {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Название") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = allDay, onCheckedChange = {
+                            haptics.perform(HapticEvent.Toggle)
+                            allDay = it
+                        })
+                        Spacer(Modifier.width(8.dp))
+                        Text("Весь день")
+                    }
+                    if (!allDay) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = startTime,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Начало") },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { pickTime(context, startTime) { startTime = it } }
+                            )
+                            OutlinedTextField(
+                                value = endTime,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Конец") },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { pickTime(context, endTime) { endTime = it } }
+                            )
+                        }
+                    }
+                    ColorPickerRow(selected = eventColor) { eventColor = it }
+                }
+
+                AddType.Period -> Unit
+
+                AddType.Sex -> {
+                    InitiatorSelector(initiator) { initiator = it }
+                    CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
+                }
+
+                AddType.Proposal -> {
+                    InitiatorSelector(initiator) { initiator = it }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = accepted, onCheckedChange = {
+                            haptics.perform(HapticEvent.Toggle)
+                            accepted = it
+                        })
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (accepted) "Принято" else "Отклонено")
+                    }
+                    if (!accepted) {
+                        OutlinedTextField(
+                            value = declineReason,
+                            onValueChange = { declineReason = it },
+                            label = { Text("Причина отказа") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                AddType.Masturbation -> {
+                    InitiatorSelector(initiator) { initiator = it }
+                    CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
                 }
             }
+
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Заметка") },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            SheetActions(
+                onDismiss = onDismiss,
+                onDelete = null,
+                onSave = {
+                    when (type) {
+                        AddType.Event -> if (title.isNotBlank()) {
+                            onSaveEvent(
+                                CalendarEvent(
+                                    id = newEventId(),
+                                    title = title.trim(),
+                                    date = date.toString(),
+                                    allDay = allDay,
+                                    startTime = if (allDay) null else startTime,
+                                    endTime = if (allDay) null else endTime,
+                                    color = eventColor,
+                                    notes = notes.trim()
+                                )
+                            )
+                        }
+
+                        AddType.Period -> onSavePeriod(
+                            PeriodEntry(id = newEventId(), startDate = date.toString(), notes = notes.trim())
+                        )
+
+                        AddType.Sex -> onSaveSex(
+                            SexEntry(
+                                id = newEventId(),
+                                date = date.toString(),
+                                initiator = initiator.storageValue,
+                                orgasmCount = orgasmCount,
+                                notes = notes.trim()
+                            )
+                        )
+
+                        AddType.Proposal -> onSaveProposal(
+                            ProposalEntry(
+                                id = newEventId(),
+                                date = date.toString(),
+                                initiator = initiator.storageValue,
+                                accepted = accepted,
+                                declineReason = if (accepted) "" else declineReason.trim(),
+                                notes = notes.trim()
+                            )
+                        )
+
+                        AddType.Masturbation -> onSaveMasturbation(
+                            MasturbationEntry(
+                                id = newEventId(),
+                                date = date.toString(),
+                                person = initiator.storageValue,
+                                orgasmCount = orgasmCount,
+                                notes = notes.trim()
+                            )
+                        )
+                    }
+                }
+            )
         }
     }
 }

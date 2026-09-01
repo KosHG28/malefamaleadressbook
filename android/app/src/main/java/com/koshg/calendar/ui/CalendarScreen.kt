@@ -1,19 +1,15 @@
 package com.koshg.calendar.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -22,11 +18,13 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +63,9 @@ sealed interface ActiveSheet {
     data class Sex(val entry: SexEntry?, val date: LocalDate) : ActiveSheet
     data class Proposal(val entry: ProposalEntry?, val date: LocalDate) : ActiveSheet
     data class Masturbation(val entry: MasturbationEntry?, val date: LocalDate) : ActiveSheet
+
+    /** The FAB's "add" flow — a single sheet with a type-chip row instead of a two-step chooser. */
+    data class New(val date: LocalDate) : ActiveSheet
 }
 
 internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED }
@@ -85,7 +86,7 @@ fun CalendarScreen(
     val appColors = appColors()
 
     var searchActive by remember { mutableStateOf(false) }
-    var showAddChooser by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
 
     val periodByDate = remember(cycleState.periods) { cycleState.periods.associateBy { it.startDate } }
@@ -104,7 +105,7 @@ fun CalendarScreen(
                 FloatingActionButton(
                     onClick = {
                         haptics.perform(HapticEvent.Select)
-                        showAddChooser = true
+                        activeSheet = ActiveSheet.New(uiState.selectedDate)
                     },
                     containerColor = appColors.accent,
                     contentColor = Color.White
@@ -129,19 +130,35 @@ fun CalendarScreen(
                         searchActive = !searchActive
                         if (!searchActive) viewModel.setSearchQuery("")
                     },
-                    onToday = { haptics.perform(HapticEvent.Tap); viewModel.goToToday() }
+                    onToday = { haptics.perform(HapticEvent.Tap); viewModel.goToToday() },
+                    onOpenHistory = {
+                        haptics.perform(HapticEvent.Tap)
+                        showHistory = true
+                    }
                 )
 
-                AnimatedContent(
-                    targetState = uiState.viewMonth,
-                    transitionSpec = {
-                        val forward = targetState.isAfter(initialState)
-                        val dir = if (forward) 1 else -1
-                        (slideInHorizontally(tween(280)) { w -> dir * w } + fadeIn(tween(280))) togetherWith
-                            (slideOutHorizontally(tween(280)) { w -> -dir * w } + fadeOut(tween(280)))
-                    },
-                    label = "month"
-                ) { month ->
+                val baseMonth = remember { YearMonth.now() }
+                val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
+                val pagerCenterPage = pagerPageCount / 2
+                val pagerState = rememberPagerState(
+                    initialPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
+                ) { pagerPageCount }
+
+                LaunchedEffect(pagerState.currentPage) {
+                    val swipedToMonth = baseMonth.plusMonths((pagerState.currentPage - pagerCenterPage).toLong())
+                    if (swipedToMonth != uiState.viewMonth) {
+                        viewModel.setViewMonth(swipedToMonth)
+                    }
+                }
+                LaunchedEffect(uiState.viewMonth) {
+                    val targetPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
+                    if (pagerState.currentPage != targetPage) {
+                        pagerState.animateScrollToPage(targetPage)
+                    }
+                }
+
+                HorizontalPager(state = pagerState) { page ->
+                    val month = baseMonth.plusMonths((page - pagerCenterPage).toLong())
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         MonthNav(
                             monthLabel = monthYearLabel(month.atDay(1)),
@@ -186,20 +203,13 @@ fun CalendarScreen(
         }
     }
 
-    if (showAddChooser) {
-        AddChooserSheet(
-            onDismiss = { showAddChooser = false },
-            onPick = { type ->
-                showAddChooser = false
-                val date = uiState.selectedDate
-                activeSheet = when (type) {
-                    AddType.Event -> ActiveSheet.Event(null, date)
-                    AddType.Period -> ActiveSheet.Period(null, date)
-                    AddType.Sex -> ActiveSheet.Sex(null, date)
-                    AddType.Proposal -> ActiveSheet.Proposal(null, date)
-                    AddType.Masturbation -> ActiveSheet.Masturbation(null, date)
-                }
-            }
+    if (showHistory) {
+        HistoryScreen(
+            periods = cycleState.periods,
+            sexEntries = intimacyState.sexEntries,
+            proposalEntries = intimacyState.proposalEntries,
+            masturbationEntries = intimacyState.masturbationEntries,
+            onClose = { showHistory = false }
         )
     }
 
@@ -294,6 +304,37 @@ fun CalendarScreen(
             }
         )
 
+        is ActiveSheet.New -> UnifiedAddSheet(
+            initialType = AddType.Event,
+            initialDate = sheet.date,
+            onDismiss = { activeSheet = null },
+            onSaveEvent = {
+                haptics.perform(HapticEvent.Confirm)
+                viewModel.saveEvent(it)
+                activeSheet = null
+            },
+            onSavePeriod = {
+                haptics.perform(HapticEvent.LogEntry)
+                cycleViewModel.savePeriod(it)
+                activeSheet = null
+            },
+            onSaveSex = {
+                haptics.perform(HapticEvent.LogEntry)
+                intimacyViewModel.saveSexEntry(it)
+                activeSheet = null
+            },
+            onSaveProposal = {
+                haptics.perform(HapticEvent.LogEntry)
+                intimacyViewModel.saveProposalEntry(it)
+                activeSheet = null
+            },
+            onSaveMasturbation = {
+                haptics.perform(HapticEvent.LogEntry)
+                intimacyViewModel.saveMasturbationEntry(it)
+                activeSheet = null
+            }
+        )
+
         null -> Unit
     }
 }
@@ -306,7 +347,8 @@ private fun CalendarHeader(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: () -> Unit,
-    onToday: () -> Unit
+    onToday: () -> Unit,
+    onOpenHistory: () -> Unit
 ) {
     val appColors = appColors()
     val today = LocalDate.now()
@@ -337,11 +379,15 @@ private fun CalendarHeader(
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenHistory) {
+                    Icon(Icons.Default.History, contentDescription = "История и тренды")
+                }
                 Text(
                     text = "КАЛЕНДАРЬ",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
@@ -371,13 +417,16 @@ private fun CalendarHeader(
             }
             Spacer(Modifier.height(4.dp))
             val subtitle = when {
-                stats.predictedNextPeriod == null -> "Добавьте дату месячных, чтобы увидеть прогноз"
+                stats.predictedNextPeriodEarliest == null || stats.predictedNextPeriodLatest == null ->
+                    "Добавьте дату месячных, чтобы увидеть прогноз"
                 else -> {
-                    val days = ChronoUnit.DAYS.between(today, stats.predictedNextPeriod)
+                    val earliestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodEarliest)
+                    val latestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodLatest)
                     when {
-                        days > 0 -> "Следующие месячные через $days дн."
-                        days == 0L -> "Ожидаемый день месячных"
-                        else -> "Месячные уже наступили"
+                        latestDays < 0 -> "Месячные уже наступили"
+                        earliestDays <= 0 -> "Ожидаемый день месячных"
+                        earliestDays == latestDays -> "Следующие месячные через $earliestDays дн."
+                        else -> "Следующие месячные через $earliestDays–$latestDays дн."
                     }
                 }
             }
@@ -552,14 +601,17 @@ private fun DayCell(
     modifier: Modifier = Modifier
 ) {
     val appColors = appColors()
-    val cornerDp = 16.dp
+    // Percent-based (not a fixed dp) so a single cell rounds into a true circle and a merged
+    // run gets a proper capsule end-cap, regardless of the row's exact height.
+    val round = CornerSize(50)
+    val square = CornerSize(0.dp)
     val runShape = RoundedCornerShape(
-        topStart = if (roundStart) cornerDp else 0.dp,
-        bottomStart = if (roundStart) cornerDp else 0.dp,
-        topEnd = if (roundEnd) cornerDp else 0.dp,
-        bottomEnd = if (roundEnd) cornerDp else 0.dp
+        topStart = if (roundStart) round else square,
+        bottomStart = if (roundStart) round else square,
+        topEnd = if (roundEnd) round else square,
+        bottomEnd = if (roundEnd) round else square
     )
-    val pillShape = RoundedCornerShape(cornerDp)
+    val pillShape = RoundedCornerShape(percent = 50)
 
     val solidFill = phase != null && !isFuture
     val phaseColor = phase?.let { appColors.colorFor(it) }
@@ -585,8 +637,8 @@ private fun DayCell(
 
     Box(
         modifier = modifier
-            .padding(vertical = 1.dp)
-            .height(44.dp)
+            .padding(vertical = 2.dp)
+            .height(46.dp)
             .then(cellModifier)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

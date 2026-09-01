@@ -66,6 +66,11 @@ class CalendarViewModel(private val repository: EventRepository) : ViewModel() {
         viewMonth.value = viewMonth.value.plusMonths(1)
     }
 
+    /** Used by the swipeable month pager to report the month the user has landed on. */
+    fun setViewMonth(month: YearMonth) {
+        viewMonth.value = month
+    }
+
     fun goToToday() {
         val today = LocalDate.now()
         viewMonth.value = YearMonth.from(today)

@@ -1,6 +1,7 @@
 package com.koshg.calendar.util
 
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -30,3 +31,9 @@ fun shortDateLabel(date: LocalDate): String {
 fun fullDateLabel(date: LocalDate): String = "${shortDateLabel(date)} ${date.year}"
 
 fun String.toLocalDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()
+
+/** "сен 26" — short month + two-digit year, for compact chart labels. */
+fun monthShortLabel(month: YearMonth): String {
+    val name = month.month.getDisplayName(TextStyle.SHORT, RUSSIAN_LOCALE)
+    return "$name ${month.year % 100}"
+}

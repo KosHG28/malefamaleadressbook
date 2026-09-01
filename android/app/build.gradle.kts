@@ -14,8 +14,8 @@ android {
         // Android 16 (API 36) only, by design — no back-compat branches to maintain.
         minSdk = 36
         targetSdk = 36
-        versionCode = 4
-        versionName = "3.0.1"
+        versionCode = 5
+        versionName = "3.0.2"
     }
 
     buildTypes {
