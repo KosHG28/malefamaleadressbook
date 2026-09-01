@@ -12,8 +12,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,41 +29,8 @@ import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.ui.theme.appColors
-import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.dayAgendaLabel
-import com.koshg.calendar.util.shortDateLabel
 import java.time.LocalDate
-
-@Composable
-fun CycleStatsCard(stats: CycleStats, modifier: Modifier = Modifier) {
-    val colors = appColors()
-    if (stats.latestPeriodStart == null) return
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = colors.periodContainer)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            MiniStat("День цикла", stats.currentCycleDay?.toString() ?: "—")
-            stats.predictedOvulation?.let { MiniStat("Овуляция", shortDateLabel(it), colors.ovulation) }
-            stats.fertileWindowStart?.let { MiniStat("Окно", "с ${it.dayOfMonth}", colors.fertile) }
-            stats.predictedNextPeriod?.let { MiniStat("Далее", shortDateLabel(it), colors.period) }
-        }
-    }
-}
-
-@Composable
-private fun MiniStat(label: String, value: String, accent: Color? = null) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.labelLarge, color = accent ?: MaterialTheme.colorScheme.onSurface)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
 
 @Composable
 fun DayAgendaPanel(
@@ -88,7 +53,7 @@ fun DayAgendaPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
         Text(
             text = dayAgendaLabel(selectedDate).replaceFirstChar { it.uppercase() },
