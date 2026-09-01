@@ -33,7 +33,10 @@ data class AppColors(
      *  which can pick low-contrast tones on some devices. */
     val textPrimary: Color,
     val textSecondary: Color,
-    val warning: Color
+    val warning: Color,
+    /** The orgasm-marker star -- a fixed warm gold, deliberately independent of phase/marker
+     *  colors so it stays recognizable against any of them, muted or vivid. */
+    val orgasmStar: Color
 )
 
 private val LightAppColors = AppColors(
@@ -58,7 +61,8 @@ private val LightAppColors = AppColors(
     luteal = Color(0xFF8B5FBF),
     textPrimary = Color(0xFF2A211C),
     textSecondary = Color(0xFF8A7A6E),
-    warning = Color(0xFFB8722B)
+    warning = Color(0xFFB8722B),
+    orgasmStar = Color(0xFFE0A500)
 )
 
 private val DarkAppColors = AppColors(
@@ -83,7 +87,8 @@ private val DarkAppColors = AppColors(
     luteal = Color(0xFF8B5FBF),
     textPrimary = Color(0xFFF5EDE8),
     textSecondary = Color(0xFFB8A99C),
-    warning = Color(0xFFE0A868)
+    warning = Color(0xFFE0A868),
+    orgasmStar = Color(0xFFFFC94D)
 )
 
 @Composable
@@ -95,6 +100,23 @@ fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.LH_PEAK -> lhPeak
     CyclePhase.OVULATORY -> ovulatory
     CyclePhase.LUTEAL -> luteal
+}
+
+/** Cheap desaturation: blends this color toward its own perceived gray by [amount] (0 = unchanged,
+ *  1 = fully gray), which reads as a calmer/less saturated version at roughly the same lightness. */
+fun Color.desaturated(amount: Float): Color {
+    val gray = 0.299f * red + 0.587f * green + 0.114f * blue
+    return lerp(this, Color(gray, gray, gray, alpha), amount.coerceIn(0f, 1f))
+}
+
+/** How much [colorFor] is desaturated when "vivid colors" is off (the calmer default). */
+private const val MUTED_PHASE_DESATURATION = 0.35f
+
+/** The phase color to actually paint with -- full-saturation [colorFor] when [vivid] is on
+ *  (the old, brighter look, opt-in), or a calmer desaturated variant by default. */
+fun AppColors.phaseColor(phase: CyclePhase, vivid: Boolean): Color {
+    val base = colorFor(phase)
+    return if (vivid) base else base.desaturated(MUTED_PHASE_DESATURATION)
 }
 
 /** Slightly darker/lighter variant of this color, for a subtle within-run gradient across a

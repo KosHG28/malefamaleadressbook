@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -43,7 +44,7 @@ import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
-import com.koshg.calendar.ui.theme.colorFor
+import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.ui.theme.runGradientShade
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
@@ -93,6 +94,10 @@ fun CalendarScreen(
     val proposalByDate = remember(intimacyState.proposalEntries) { intimacyState.proposalEntries.associateBy { it.date } }
     val masturbationDates = remember(intimacyState.masturbationEntries) {
         intimacyState.masturbationEntries.map { it.date }.toSet()
+    }
+    val orgasmDates = remember(intimacyState.sexEntries, intimacyState.masturbationEntries) {
+        (intimacyState.sexEntries.filter { it.orgasmCount > 0 }.map { it.date } +
+            intimacyState.masturbationEntries.filter { it.orgasmCount > 0 }.map { it.date }).toSet()
     }
 
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
@@ -145,7 +150,8 @@ fun CalendarScreen(
                     onOpenSettings = {
                         haptics.perform(HapticEvent.Tap)
                         showSettings = true
-                    }
+                    },
+                    vividColors = cycleState.vividColors
                 )
 
                 val baseMonth = remember { YearMonth.now() }
@@ -191,10 +197,12 @@ fun CalendarScreen(
                             marginDays = cycleState.stats.appliedMarginDays,
                             lutealPhaseDays = cycleState.lutealPhaseDays,
                             gradientDayFill = cycleState.gradientDayFill,
+                            vividColors = cycleState.vividColors,
                             accentColor = dynamicAccent,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
                             masturbationDates = masturbationDates,
+                            orgasmDates = orgasmDates,
                             onDayClick = { date ->
                                 haptics.perform(HapticEvent.Tap)
                                 viewModel.selectDate(date)
@@ -208,7 +216,7 @@ fun CalendarScreen(
                     }
                 }
 
-                PhaseLegend()
+                PhaseLegend(vividColors = cycleState.vividColors)
 
                 DayAgendaPanel(
                     selectedDate = uiState.selectedDate,
@@ -246,6 +254,8 @@ fun CalendarScreen(
             onAdaptiveThemeChange = cycleViewModel::setAdaptiveTheme,
             gradientDayFill = cycleState.gradientDayFill,
             onGradientDayFillChange = cycleViewModel::setGradientDayFill,
+            vividColors = cycleState.vividColors,
+            onVividColorsChange = cycleViewModel::setVividColors,
             onClose = { showSettings = false }
         )
     }
@@ -377,7 +387,8 @@ private fun CalendarHeader(
     todayPhase: CyclePhase?,
     onToday: () -> Unit,
     onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    vividColors: Boolean
 ) {
     val appColors = appColors()
     val today = LocalDate.now()
@@ -419,7 +430,7 @@ private fun CalendarHeader(
                 Text(
                     text = "  ${todayPhase.label}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = appColors.colorFor(todayPhase),
+                    color = appColors.phaseColor(todayPhase, vividColors),
                     modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
@@ -499,7 +510,7 @@ private fun WeekdayHeader() {
 }
 
 @Composable
-private fun PhaseLegend() {
+private fun PhaseLegend(vividColors: Boolean) {
     val appColors = appColors()
     Column(
         modifier = Modifier
@@ -522,7 +533,7 @@ private fun PhaseLegend() {
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(appColors.colorFor(phase))
+                                .background(appColors.phaseColor(phase, vividColors))
                         )
                         Text(
                             text = phase.label,
@@ -548,10 +559,12 @@ private fun MonthGrid(
     marginDays: Int,
     lutealPhaseDays: Int,
     gradientDayFill: Boolean,
+    vividColors: Boolean,
     accentColor: Color,
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
+    orgasmDates: Set<String>,
     onDayClick: (LocalDate) -> Unit,
     onDayLongClick: (LocalDate) -> Unit
 ) {
@@ -637,7 +650,9 @@ private fun MonthGrid(
                         roundEnd = !mergesWithNext,
                         runFraction = runFractions[idx],
                         gradientFillEnabled = gradientDayFill,
+                        vividColors = vividColors,
                         accentColor = accentColor,
+                        hasOrgasm = dateKey in orgasmDates,
                         dayEvents = eventsByDate[dateKey].orEmpty(),
                         intimacyMarker = marker,
                         hasMasturbation = dateKey in masturbationDates,
@@ -664,7 +679,9 @@ private fun DayCell(
     roundEnd: Boolean,
     runFraction: Float,
     gradientFillEnabled: Boolean,
+    vividColors: Boolean,
     accentColor: Color,
+    hasOrgasm: Boolean,
     dayEvents: List<CalendarEvent>,
     intimacyMarker: IntimacyMarker,
     hasMasturbation: Boolean,
@@ -686,9 +703,11 @@ private fun DayCell(
     val pillShape = RoundedCornerShape(percent = 50)
 
     // "Gradient fill" shades a same-phase run darker at its start and lighter at its end (e.g.
-    // building toward ovulation), instead of one flat color across the whole run.
+    // building toward ovulation), instead of one flat color across the whole run. Muted by
+    // default (appColors.phaseColor desaturates unless "vivid colors" is on) to cut down on how
+    // many loud, competing hues are on screen at once.
     val phaseColor = phase?.let {
-        val base = appColors.colorFor(it)
+        val base = appColors.phaseColor(it, vividColors)
         if (gradientFillEnabled) base.runGradientShade(runFraction) else base
     }
     // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
@@ -769,13 +788,33 @@ private fun DayCell(
                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.SemiBold,
                     color = textColor.copy(alpha = contentAlpha)
                 )
+                // A small gold star badge flags a day with a logged orgasm (sex or solo) --
+                // a fixed color independent of the phase/marker palette so it always pops, on a
+                // tiny white backing circle for contrast against any fill underneath.
+                if (hasOrgasm) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(13.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.95f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = "Оргазм",
+                            tint = appColors.orgasmStar,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+                }
             }
             if (dayEvents.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    dayEvents.take(2).forEach { evt ->
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    dayEvents.take(3).forEach { evt ->
                         Box(
                             modifier = Modifier
-                                .size(5.dp)
+                                .size(6.dp)
                                 .clip(CircleShape)
                                 .background(Color(evt.color))
                         )

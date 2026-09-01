@@ -7,6 +7,7 @@ private const val PREFS_NAME = "cycle_prefs"
 private const val KEY_LUTEAL_PHASE_DAYS = "luteal_phase_days"
 private const val KEY_ADAPTIVE_THEME = "adaptive_theme"
 private const val KEY_GRADIENT_DAY_FILL = "gradient_day_fill"
+private const val KEY_VIVID_COLORS = "vivid_colors"
 
 /** User-overridable cycle-model parameters and appearance toggles, persisted across launches. */
 class CyclePreferences(context: Context) {
@@ -25,4 +26,9 @@ class CyclePreferences(context: Context) {
     var gradientDayFill: Boolean
         get() = prefs.getBoolean(KEY_GRADIENT_DAY_FILL, false)
         set(value) = prefs.edit().putBoolean(KEY_GRADIENT_DAY_FILL, value).apply()
+
+    /** Off by default (calmer, desaturated phase colors); on restores the original vivid palette. */
+    var vividColors: Boolean
+        get() = prefs.getBoolean(KEY_VIVID_COLORS, false)
+        set(value) = prefs.edit().putBoolean(KEY_VIVID_COLORS, value).apply()
 }

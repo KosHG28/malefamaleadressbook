@@ -37,6 +37,8 @@ fun SettingsScreen(
     onAdaptiveThemeChange: (Boolean) -> Unit,
     gradientDayFill: Boolean,
     onGradientDayFillChange: (Boolean) -> Unit,
+    vividColors: Boolean,
+    onVividColorsChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -75,7 +77,9 @@ fun SettingsScreen(
                         adaptiveTheme = adaptiveTheme,
                         onAdaptiveThemeChange = onAdaptiveThemeChange,
                         gradientDayFill = gradientDayFill,
-                        onGradientDayFillChange = onGradientDayFillChange
+                        onGradientDayFillChange = onGradientDayFillChange,
+                        vividColors = vividColors,
+                        onVividColorsChange = onVividColorsChange
                     )
                 }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
@@ -123,10 +127,27 @@ private fun AppearanceSection(
     adaptiveTheme: Boolean,
     onAdaptiveThemeChange: (Boolean) -> Unit,
     gradientDayFill: Boolean,
-    onGradientDayFillChange: (Boolean) -> Unit
+    onGradientDayFillChange: (Boolean) -> Unit,
+    vividColors: Boolean,
+    onVividColorsChange: (Boolean) -> Unit
 ) {
     val appColors = appColors()
     SectionCard(title = "Оформление") {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Яркие цвета фаз",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+                Text(
+                    "По умолчанию цвета фаз приглушены для более спокойного вида календаря",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
+                )
+            }
+            Switch(checked = vividColors, onCheckedChange = onVividColorsChange)
+        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

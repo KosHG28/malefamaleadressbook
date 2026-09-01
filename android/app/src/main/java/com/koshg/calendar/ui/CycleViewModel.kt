@@ -23,7 +23,8 @@ data class CycleUiState(
     val stats: CycleStats = computeCycleStats(emptyList()),
     val lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS,
     val adaptiveTheme: Boolean = false,
-    val gradientDayFill: Boolean = false
+    val gradientDayFill: Boolean = false,
+    val vividColors: Boolean = false
 )
 
 class CycleViewModel(
@@ -34,16 +35,18 @@ class CycleViewModel(
     private val lutealPhaseDays = MutableStateFlow(preferences.lutealPhaseDays)
     private val adaptiveTheme = MutableStateFlow(preferences.adaptiveTheme)
     private val gradientDayFill = MutableStateFlow(preferences.gradientDayFill)
+    private val vividColors = MutableStateFlow(preferences.vividColors)
 
     val uiState: StateFlow<CycleUiState> = combine(
-        repository.periods, lutealPhaseDays, adaptiveTheme, gradientDayFill
-    ) { periods, luteal, adaptive, gradient ->
+        repository.periods, lutealPhaseDays, adaptiveTheme, gradientDayFill, vividColors
+    ) { periods, luteal, adaptive, gradient, vivid ->
         CycleUiState(
             periods = periods,
             stats = computeCycleStats(periods, lutealPhaseDays = luteal),
             lutealPhaseDays = luteal,
             adaptiveTheme = adaptive,
-            gradientDayFill = gradient
+            gradientDayFill = gradient,
+            vividColors = vivid
         )
     }.stateIn(
         scope = viewModelScope,
@@ -51,7 +54,8 @@ class CycleViewModel(
         initialValue = CycleUiState(
             lutealPhaseDays = preferences.lutealPhaseDays,
             adaptiveTheme = preferences.adaptiveTheme,
-            gradientDayFill = preferences.gradientDayFill
+            gradientDayFill = preferences.gradientDayFill,
+            vividColors = preferences.vividColors
         )
     )
 
@@ -77,6 +81,11 @@ class CycleViewModel(
     fun setGradientDayFill(enabled: Boolean) {
         preferences.gradientDayFill = enabled
         gradientDayFill.value = enabled
+    }
+
+    fun setVividColors(enabled: Boolean) {
+        preferences.vividColors = enabled
+        vividColors.value = enabled
     }
 
     companion object {
