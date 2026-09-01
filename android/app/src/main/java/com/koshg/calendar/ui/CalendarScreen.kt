@@ -144,7 +144,12 @@ fun CalendarScreen(
 
                 LaunchedEffect(pagerState.currentPage) {
                     val swipedToMonth = baseMonth.plusMonths((pagerState.currentPage - pagerCenterPage).toLong())
+                    // This only differs from the current view month on a genuine user swipe --
+                    // a chevron-driven change already lands here with swipedToMonth already
+                    // matching (the other LaunchedEffect below just animates the pager to catch
+                    // up), so a haptic here never doubles up with the chevron's own tap.
                     if (swipedToMonth != uiState.viewMonth) {
+                        haptics.perform(HapticEvent.Tap)
                         viewModel.setViewMonth(swipedToMonth)
                     }
                 }
@@ -622,11 +627,11 @@ private fun DayCell(
     val pillShape = RoundedCornerShape(percent = 50)
 
     val phaseColor = phase?.let { appColors.colorFor(it) }
-    // Every day with a known phase fills solid -- past/today at full strength, future
-    // (predicted) days a shade lighter so the timeline visibly extends forward instead of
-    // stopping at today, while still reading as "not yet actual."
+    // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
+    // since what's coming up is the whole point of a forecast calendar, while already-elapsed
+    // days fade back a touch to keep the emphasis forward-looking.
     val monthAlpha = if (inCurrentMonth) 1f else 0.4f
-    val contentAlpha = monthAlpha * (if (isFuture) 0.55f else 1f)
+    val contentAlpha = monthAlpha * (if (isFuture) 1f else 0.6f)
 
     val textColor = when {
         phaseColor != null -> Color.White
@@ -645,7 +650,7 @@ private fun DayCell(
     Box(
         modifier = modifier
             .padding(vertical = 2.dp)
-            .height(46.dp)
+            .height(38.dp)
             .then(cellModifier)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -673,12 +678,15 @@ private fun DayCell(
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
+                // The marker ring always renders at full brightness, regardless of the cell's
+                // own past/future/adjacent-month fade -- it flags an actual logged entry, not
+                // a prediction, so it should never read as dimmed.
                 when {
-                    isToday -> DottedRing(color = markerColor ?: textColor, size = 24.dp)
+                    isToday -> DottedRing(color = markerColor ?: textColor, size = 27.dp)
                     markerColor != null -> Box(
                         modifier = Modifier
-                            .size(22.dp)
-                            .border(1.6.dp, markerColor.copy(alpha = contentAlpha), CircleShape)
+                            .size(27.dp)
+                            .border(2.dp, markerColor, CircleShape)
                     )
                 }
                 Text(

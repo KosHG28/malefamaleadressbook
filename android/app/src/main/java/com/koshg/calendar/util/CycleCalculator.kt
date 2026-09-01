@@ -20,6 +20,13 @@ const val DEFAULT_LUTEAL_PHASE_DAYS = 13
 /** EWMA smoothing factor for the cycle-length forecast — higher reacts faster, lower is steadier. */
 private const val EWMA_ALPHA = 0.2
 
+/**
+ * How many days before predicted ovulation the LH (luteinizing hormone) surge peaks. The LH
+ * surge is what triggers ovulation roughly 24-36h later, so one day before the predicted
+ * ovulation date is the standard estimate absent any actual hormone-test data.
+ */
+const val LH_PEAK_OFFSET_DAYS = 1
+
 /** How many fertile days are counted before predicted ovulation, before any dynamic margin. */
 const val FERTILE_WINDOW_BEFORE_OVULATION_DAYS = 5
 
@@ -47,6 +54,7 @@ private const val MAX_CYCLE_WALK_STEPS = 2000
 enum class CyclePhase(val label: String) {
     MENSTRUAL("Менструация"),
     FOLLICULAR("Фолликулярная"),
+    LH_PEAK("Пик ЛГ"),
     OVULATORY("Овуляция"),
     LUTEAL("Лютеиновая")
 }
@@ -60,6 +68,7 @@ data class CycleStats(
     val predictedNextPeriodEarliest: LocalDate?,
     val predictedNextPeriodLatest: LocalDate?,
     val predictedOvulation: LocalDate?,
+    val predictedLhPeak: LocalDate?,
     val fertileWindowStart: LocalDate?,
     val fertileWindowEnd: LocalDate?,
     val cycleStandardDeviationDays: Double,
@@ -76,6 +85,7 @@ private val EMPTY_STATS = CycleStats(
     predictedNextPeriodEarliest = null,
     predictedNextPeriodLatest = null,
     predictedOvulation = null,
+    predictedLhPeak = null,
     fertileWindowStart = null,
     fertileWindowEnd = null,
     cycleStandardDeviationDays = 0.0,
@@ -144,6 +154,7 @@ fun computeCycleStats(
 
     val nextPeriod = latest.plusDays(roundedForecastLength.toLong())
     val ovulation = nextPeriod.minusDays(lutealPhaseDays.toLong())
+    val lhPeak = ovulation.minusDays(LH_PEAK_OFFSET_DAYS.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
 
@@ -156,6 +167,7 @@ fun computeCycleStats(
         predictedNextPeriodEarliest = latest.plusDays((roundedForecastLength - marginDays).toLong()),
         predictedNextPeriodLatest = latest.plusDays((roundedForecastLength + marginDays).toLong()),
         predictedOvulation = ovulation,
+        predictedLhPeak = lhPeak,
         fertileWindowStart = fertileStart,
         fertileWindowEnd = fertileEnd,
         cycleStandardDeviationDays = standardDeviation,
@@ -206,12 +218,14 @@ fun cyclePhaseFor(
 
     val periodEnd = cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
     val ovulation = nextPeriodStart.minusDays(lutealPhaseDays.toLong())
+    val lhPeak = ovulation.minusDays(LH_PEAK_OFFSET_DAYS.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
 
     return when {
         date.isBefore(periodEnd) -> CyclePhase.MENSTRUAL
         date.isBefore(fertileStart) -> CyclePhase.FOLLICULAR
+        date.isEqual(lhPeak) -> CyclePhase.LH_PEAK
         !date.isAfter(fertileEnd) -> CyclePhase.OVULATORY
         else -> CyclePhase.LUTEAL
     }

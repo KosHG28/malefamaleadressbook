@@ -24,6 +24,7 @@ data class AppColors(
     val gradientBottom: Color,
     val menstrual: Color,
     val follicular: Color,
+    val lhPeak: Color,
     val ovulatory: Color,
     val luteal: Color,
     /** Explicit, theme-guaranteed text colors for content drawn on the gradient/warm surfaces —
@@ -51,6 +52,7 @@ private val LightAppColors = AppColors(
     gradientBottom = Color(0xFFFCE1EC),
     menstrual = Color(0xFFE0536B),
     follicular = Color(0xFF7C8CB8),
+    lhPeak = Color(0xFFD9A62B),
     ovulatory = Color(0xFF2F9DA6),
     luteal = Color(0xFF8B5FBF),
     textPrimary = Color(0xFF2A211C),
@@ -75,6 +77,7 @@ private val DarkAppColors = AppColors(
     gradientBottom = Color(0xFF120D0B),
     menstrual = Color(0xFFE0536B),
     follicular = Color(0xFF7C8CB8),
+    lhPeak = Color(0xFFF0C25C),
     ovulatory = Color(0xFF2F9DA6),
     luteal = Color(0xFF8B5FBF),
     textPrimary = Color(0xFFF5EDE8),
@@ -88,6 +91,7 @@ fun appColors(): AppColors = if (isSystemInDarkTheme()) DarkAppColors else Light
 fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.MENSTRUAL -> menstrual
     CyclePhase.FOLLICULAR -> follicular
+    CyclePhase.LH_PEAK -> lhPeak
     CyclePhase.OVULATORY -> ovulatory
     CyclePhase.LUTEAL -> luteal
 }
