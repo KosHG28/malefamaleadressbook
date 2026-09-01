@@ -33,6 +33,10 @@ private val LUTEAL_PHASE_DAYS_RANGE = 8..20
 fun SettingsScreen(
     lutealPhaseDays: Int,
     onLutealPhaseDaysChange: (Int) -> Unit,
+    adaptiveTheme: Boolean,
+    onAdaptiveThemeChange: (Boolean) -> Unit,
+    gradientDayFill: Boolean,
+    onGradientDayFillChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -66,6 +70,14 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item { SecuritySection() }
+                item {
+                    AppearanceSection(
+                        adaptiveTheme = adaptiveTheme,
+                        onAdaptiveThemeChange = onAdaptiveThemeChange,
+                        gradientDayFill = gradientDayFill,
+                        onGradientDayFillChange = onGradientDayFillChange
+                    )
+                }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
                 item { AboutSection() }
                 item { Spacer(Modifier.height(24.dp)) }
@@ -102,6 +114,48 @@ private fun SecuritySection() {
                     prefs.isEnabled = it
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSection(
+    adaptiveTheme: Boolean,
+    onAdaptiveThemeChange: (Boolean) -> Unit,
+    gradientDayFill: Boolean,
+    onGradientDayFillChange: (Boolean) -> Unit
+) {
+    val appColors = appColors()
+    SectionCard(title = "Оформление") {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Адаптивная тема",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+                Text(
+                    "Акцент кнопки добавления и выбранной даты плавно меняется по фазе цикла",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
+                )
+            }
+            Switch(checked = adaptiveTheme, onCheckedChange = onAdaptiveThemeChange)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Градиентная заливка дней",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+                Text(
+                    "Внутри одной фазы цвет дня слегка меняется от начала к концу периода",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
+                )
+            }
+            Switch(checked = gradientDayFill, onCheckedChange = onGradientDayFillChange)
         }
     }
 }

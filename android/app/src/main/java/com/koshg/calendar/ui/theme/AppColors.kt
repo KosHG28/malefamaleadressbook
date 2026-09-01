@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import com.koshg.calendar.util.CyclePhase
 
 @Immutable
@@ -94,4 +95,29 @@ fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.LH_PEAK -> lhPeak
     CyclePhase.OVULATORY -> ovulatory
     CyclePhase.LUTEAL -> luteal
+}
+
+/** Slightly darker/lighter variant of this color, for a subtle within-run gradient across a
+ *  contiguous span of same-phase calendar days -- fraction 0 = run start (darker), 1 = run end
+ *  (lighter), so a run visually "builds" toward its end (e.g. approaching ovulation). */
+fun Color.runGradientShade(fraction: Float): Color {
+    val dark = lerp(this, Color.Black, 0.16f)
+    val light = lerp(this, Color.White, 0.20f)
+    return lerp(dark, light, fraction.coerceIn(0f, 1f))
+}
+
+private fun AppColors.colorForNext(phase: CyclePhase): Color {
+    val order = CyclePhase.entries
+    return colorFor(order[(phase.ordinal + 1) % order.size])
+}
+
+/** The accent color for "adaptive theme": blends smoothly from the current cycle phase's color
+ *  toward the next phase's color as the day progresses through the current phase, so the
+ *  FAB/selection accent shifts gradually day to day instead of jumping at each phase boundary.
+ *  Falls back to the static [AppColors.accent] with no phase data (e.g. no periods logged yet). */
+fun AppColors.adaptiveAccent(todayPhaseProgress: Pair<CyclePhase, Float>?): Color {
+    if (todayPhaseProgress == null) return accent
+    val (phase, fraction) = todayPhaseProgress
+    if (phase == CyclePhase.LH_PEAK) return lhPeak
+    return lerp(colorFor(phase), colorForNext(phase), fraction.coerceIn(0f, 1f))
 }

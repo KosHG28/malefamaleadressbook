@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
@@ -36,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,10 +45,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import com.koshg.calendar.data.Initiator
 import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
@@ -142,11 +150,34 @@ internal fun sheetFieldColors(): TextFieldColors {
 internal val sheetFieldShape = RoundedCornerShape(14.dp)
 
 /**
- * Single sheet for creating a new entry of any kind — a row of colored type chips up top swaps
+ * Applies a system background-blur to whatever sits behind this dialog's own window, layered
+ * under the platform's default scrim dim -- the "frosted glass" look from Android 12+'s
+ * [android.view.Window.setBackgroundBlurRadius], which silently no-ops on a device/GPU that
+ * doesn't support it rather than crashing. Must run inside a [Dialog]'s content, where the
+ * composition's [LocalView] parent is the dialog's own [DialogWindowProvider].
+ */
+@Composable
+private fun DialogBackgroundBlur(radiusPx: Int = 90) {
+    val view = LocalView.current
+    LaunchedEffect(view) {
+        val window = (view.parent as? DialogWindowProvider)?.window ?: return@LaunchedEffect
+        // Background blur (unlike FLAG_BLUR_BEHIND + blurBehindRadius) only blurs the area
+        // behind the window's own bounds -- exactly what's wanted here since the dialog's
+        // window already spans the full screen (usePlatformDefaultWidth = false + a
+        // fillMaxSize root Box), so no extra window flag is needed.
+        window.setBackgroundBlurRadius(radiusPx)
+    }
+}
+
+/**
+ * Single dialog for creating a new entry of any kind — a row of colored type chips up top swaps
  * the fields below, so picking what to log and filling it in happens in one open/close instead
  * of a chooser sheet followed by a second, type-specific one.
+ *
+ * A centered, floating card rather than a full-width bottom sheet: rounded on every corner (not
+ * just the top), with its own shadow and a blurred/dimmed scrim behind it, so it reads as a
+ * compact popup instead of a shutter that slices the screen in half.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnifiedAddSheet(
     initialType: AddType,
@@ -157,7 +188,6 @@ fun UnifiedAddSheet(
     onSaveProposal: (ProposalEntry) -> Unit,
     onSaveMasturbation: (MasturbationEntry) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptics = LocalHaptics.current
     val appColors = appColors()
 
@@ -170,113 +200,122 @@ fun UnifiedAddSheet(
     var accepted by remember { mutableStateOf(true) }
     var declineReason by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = appColors.warmSurface
-    ) {
-        Column(
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        DialogBackgroundBlur()
+        val maxCardHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text("Новая запись", style = MaterialTheme.typography.titleLarge, color = appColors.textPrimary)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxCardHeight)
+                    .shadow(elevation = 24.dp, shape = RoundedCornerShape(28.dp))
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(appColors.warmSurface)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text("Новая запись", style = MaterialTheme.typography.titleLarge, color = appColors.textPrimary)
 
-            TypeChipRow(selected = type) { type = it }
+                TypeChipRow(selected = type) { type = it }
 
-            DateField(date) { date = it }
+                DateField(date) { date = it }
 
-            when (type) {
-                AddType.Period -> Unit
+                when (type) {
+                    AddType.Period -> Unit
 
-                AddType.Sex -> {
-                    InitiatorSelector(initiator) { initiator = it }
-                    CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
-                }
-
-                AddType.Proposal -> {
-                    InitiatorSelector(initiator) { initiator = it }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = accepted, onCheckedChange = {
-                            haptics.perform(HapticEvent.Toggle)
-                            accepted = it
-                        })
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
+                    AddType.Sex -> {
+                        InitiatorSelector(initiator) { initiator = it }
+                        CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
                     }
-                    if (!accepted) {
-                        OutlinedTextField(
-                            value = declineReason,
-                            onValueChange = { declineReason = it },
-                            label = { Text("Причина отказа") },
-                            shape = sheetFieldShape,
-                            colors = sheetFieldColors(),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+
+                    AddType.Proposal -> {
+                        InitiatorSelector(initiator) { initiator = it }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(checked = accepted, onCheckedChange = {
+                                haptics.perform(HapticEvent.Toggle)
+                                accepted = it
+                            })
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
+                        }
+                        if (!accepted) {
+                            OutlinedTextField(
+                                value = declineReason,
+                                onValueChange = { declineReason = it },
+                                label = { Text("Причина отказа") },
+                                shape = sheetFieldShape,
+                                colors = sheetFieldColors(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    AddType.Masturbation -> {
+                        InitiatorSelector(initiator) { initiator = it }
+                        CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
                     }
                 }
 
-                AddType.Masturbation -> {
-                    InitiatorSelector(initiator) { initiator = it }
-                    CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
-                }
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Заметка") },
+                    minLines = 2,
+                    maxLines = 4,
+                    shape = sheetFieldShape,
+                    colors = sheetFieldColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                SheetActions(
+                    onDismiss = onDismiss,
+                    onDelete = null,
+                    onSave = {
+                        when (type) {
+                            AddType.Period -> onSavePeriod(
+                                PeriodEntry(id = newEventId(), startDate = date.toString(), notes = notes.trim())
+                            )
+
+                            AddType.Sex -> onSaveSex(
+                                SexEntry(
+                                    id = newEventId(),
+                                    date = date.toString(),
+                                    initiator = initiator.storageValue,
+                                    orgasmCount = orgasmCount,
+                                    notes = notes.trim()
+                                )
+                            )
+
+                            AddType.Proposal -> onSaveProposal(
+                                ProposalEntry(
+                                    id = newEventId(),
+                                    date = date.toString(),
+                                    initiator = initiator.storageValue,
+                                    accepted = accepted,
+                                    declineReason = if (accepted) "" else declineReason.trim(),
+                                    notes = notes.trim()
+                                )
+                            )
+
+                            AddType.Masturbation -> onSaveMasturbation(
+                                MasturbationEntry(
+                                    id = newEventId(),
+                                    date = date.toString(),
+                                    person = initiator.storageValue,
+                                    orgasmCount = orgasmCount,
+                                    notes = notes.trim()
+                                )
+                            )
+                        }
+                    }
+                )
             }
-
-            OutlinedTextField(
-                value = notes,
-                onValueChange = { notes = it },
-                label = { Text("Заметка") },
-                minLines = 2,
-                maxLines = 4,
-                shape = sheetFieldShape,
-                colors = sheetFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            SheetActions(
-                onDismiss = onDismiss,
-                onDelete = null,
-                onSave = {
-                    when (type) {
-                        AddType.Period -> onSavePeriod(
-                            PeriodEntry(id = newEventId(), startDate = date.toString(), notes = notes.trim())
-                        )
-
-                        AddType.Sex -> onSaveSex(
-                            SexEntry(
-                                id = newEventId(),
-                                date = date.toString(),
-                                initiator = initiator.storageValue,
-                                orgasmCount = orgasmCount,
-                                notes = notes.trim()
-                            )
-                        )
-
-                        AddType.Proposal -> onSaveProposal(
-                            ProposalEntry(
-                                id = newEventId(),
-                                date = date.toString(),
-                                initiator = initiator.storageValue,
-                                accepted = accepted,
-                                declineReason = if (accepted) "" else declineReason.trim(),
-                                notes = notes.trim()
-                            )
-                        )
-
-                        AddType.Masturbation -> onSaveMasturbation(
-                            MasturbationEntry(
-                                id = newEventId(),
-                                date = date.toString(),
-                                person = initiator.storageValue,
-                                orgasmCount = orgasmCount,
-                                notes = notes.trim()
-                            )
-                        )
-                    }
-                }
-            )
         }
     }
 }

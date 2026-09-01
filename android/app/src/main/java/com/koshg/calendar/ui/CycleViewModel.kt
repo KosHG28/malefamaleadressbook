@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 data class CycleUiState(
     val periods: List<PeriodEntry> = emptyList(),
     val stats: CycleStats = computeCycleStats(emptyList()),
-    val lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
+    val lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS,
+    val adaptiveTheme: Boolean = false,
+    val gradientDayFill: Boolean = false
 )
 
 class CycleViewModel(
@@ -30,13 +32,27 @@ class CycleViewModel(
 ) : ViewModel() {
 
     private val lutealPhaseDays = MutableStateFlow(preferences.lutealPhaseDays)
+    private val adaptiveTheme = MutableStateFlow(preferences.adaptiveTheme)
+    private val gradientDayFill = MutableStateFlow(preferences.gradientDayFill)
 
-    val uiState: StateFlow<CycleUiState> = combine(repository.periods, lutealPhaseDays) { periods, luteal ->
-        CycleUiState(periods = periods, stats = computeCycleStats(periods, lutealPhaseDays = luteal), lutealPhaseDays = luteal)
+    val uiState: StateFlow<CycleUiState> = combine(
+        repository.periods, lutealPhaseDays, adaptiveTheme, gradientDayFill
+    ) { periods, luteal, adaptive, gradient ->
+        CycleUiState(
+            periods = periods,
+            stats = computeCycleStats(periods, lutealPhaseDays = luteal),
+            lutealPhaseDays = luteal,
+            adaptiveTheme = adaptive,
+            gradientDayFill = gradient
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = CycleUiState(lutealPhaseDays = preferences.lutealPhaseDays)
+        initialValue = CycleUiState(
+            lutealPhaseDays = preferences.lutealPhaseDays,
+            adaptiveTheme = preferences.adaptiveTheme,
+            gradientDayFill = preferences.gradientDayFill
+        )
     )
 
     fun savePeriod(entry: PeriodEntry) {
@@ -51,6 +67,16 @@ class CycleViewModel(
     fun setLutealPhaseDays(days: Int) {
         preferences.lutealPhaseDays = days
         lutealPhaseDays.value = days
+    }
+
+    fun setAdaptiveTheme(enabled: Boolean) {
+        preferences.adaptiveTheme = enabled
+        adaptiveTheme.value = enabled
+    }
+
+    fun setGradientDayFill(enabled: Boolean) {
+        preferences.gradientDayFill = enabled
+        gradientDayFill.value = enabled
     }
 
     companion object {

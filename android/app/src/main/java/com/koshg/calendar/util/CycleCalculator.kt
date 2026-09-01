@@ -176,24 +176,21 @@ fun computeCycleStats(
     )
 }
 
+private data class CycleWindow(val cycleStart: LocalDate, val nextPeriodStart: LocalDate)
+
 /**
- * Classifies [date] into a cycle phase by locating (or extrapolating, using the forecast cycle
- * length) the menstrual cycle it falls in — this works for any date, past or future, logged or
- * not, so a whole visible month grid — including days that spill into neighboring cycles — can
- * be colored consistently. Returns null only when there is no period history at all.
+ * Locates (or extrapolates, using the forecast cycle length) the menstrual cycle [date] falls
+ * in — this works for any date, past or future, logged or not, so a whole visible month grid —
+ * including days that spill into neighboring cycles — can be colored consistently. Returns null
+ * only when there is no period history at all.
  *
- * [cycleStart] and [nextPeriodStart] are always walked together, one cycle-length step at a time,
- * in both directions — never re-derived independently — so a date several cycles before or after
- * the logged history still lands in the correct synthetic cycle instead of being measured against
- * a stale, too-distant boundary (which previously misclassified the days right before an
- * unlogged/extrapolated period start).
+ * [CycleWindow.cycleStart] and [CycleWindow.nextPeriodStart] are always walked together, one
+ * cycle-length step at a time, in both directions — never re-derived independently — so a date
+ * several cycles before or after the logged history still lands in the correct synthetic cycle
+ * instead of being measured against a stale, too-distant boundary (which previously misclassified
+ * the days right before an unlogged/extrapolated period start).
  */
-fun cyclePhaseFor(
-    date: LocalDate,
-    periods: List<PeriodEntry>,
-    marginDays: Int = 0,
-    lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
-): CyclePhase? {
+private fun resolveCycleWindow(date: LocalDate, periods: List<PeriodEntry>): CycleWindow? {
     val sortedDates = periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
     if (sortedDates.isEmpty()) return null
 
@@ -216,8 +213,20 @@ fun cyclePhaseFor(
         steps++
     }
 
-    val periodEnd = cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
-    val ovulation = nextPeriodStart.minusDays(lutealPhaseDays.toLong())
+    return CycleWindow(cycleStart, nextPeriodStart)
+}
+
+/** Classifies [date] into a cycle phase. See [resolveCycleWindow] for how the enclosing cycle is found. */
+fun cyclePhaseFor(
+    date: LocalDate,
+    periods: List<PeriodEntry>,
+    marginDays: Int = 0,
+    lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
+): CyclePhase? {
+    val window = resolveCycleWindow(date, periods) ?: return null
+
+    val periodEnd = window.cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
+    val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
     val lhPeak = ovulation.minusDays(LH_PEAK_OFFSET_DAYS.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
@@ -228,5 +237,40 @@ fun cyclePhaseFor(
         date.isEqual(lhPeak) -> CyclePhase.LH_PEAK
         !date.isAfter(fertileEnd) -> CyclePhase.OVULATORY
         else -> CyclePhase.LUTEAL
+    }
+}
+
+/**
+ * Same classification as [cyclePhaseFor], but also returns how far [date] sits through that
+ * phase (0f = the phase's first day, 1f = its last) — used to blend an "adaptive" accent color
+ * smoothly between consecutive phases instead of jumping at each boundary. Returns null under
+ * the same condition as [cyclePhaseFor].
+ */
+fun cyclePhaseProgressFor(
+    date: LocalDate,
+    periods: List<PeriodEntry>,
+    marginDays: Int = 0,
+    lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
+): Pair<CyclePhase, Float>? {
+    val window = resolveCycleWindow(date, periods) ?: return null
+
+    val periodEnd = window.cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
+    val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
+    val lhPeak = ovulation.minusDays(LH_PEAK_OFFSET_DAYS.toLong())
+    val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
+    val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
+
+    fun progressWithin(start: LocalDate, endExclusive: LocalDate): Float {
+        val span = ChronoUnit.DAYS.between(start, endExclusive)
+        if (span <= 0) return 0f
+        return (ChronoUnit.DAYS.between(start, date).toFloat() / span.toFloat()).coerceIn(0f, 1f)
+    }
+
+    return when {
+        date.isBefore(periodEnd) -> CyclePhase.MENSTRUAL to progressWithin(window.cycleStart, periodEnd)
+        date.isBefore(fertileStart) -> CyclePhase.FOLLICULAR to progressWithin(periodEnd, fertileStart)
+        date.isEqual(lhPeak) -> CyclePhase.LH_PEAK to 0.5f
+        !date.isAfter(fertileEnd) -> CyclePhase.OVULATORY to progressWithin(fertileStart, fertileEnd.plusDays(1))
+        else -> CyclePhase.LUTEAL to progressWithin(fertileEnd.plusDays(1), window.nextPeriodStart)
     }
 }

@@ -41,12 +41,15 @@ import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.colorFor
+import com.koshg.calendar.ui.theme.runGradientShade
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.WEEKDAY_SHORT_NAMES
 import com.koshg.calendar.util.cyclePhaseFor
+import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -94,6 +97,17 @@ fun CalendarScreen(
 
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
 
+    // "Adaptive theme" blends the accent across cycle phases instead of a fixed color -- computed
+    // once here and threaded down to the FAB and the calendar's own selected-day ring, rather than
+    // touching every accent-colored element in the app (dialogs/sheets keep the static accent).
+    val dynamicAccent = if (cycleState.adaptiveTheme) {
+        appColors.adaptiveAccent(
+            cyclePhaseProgressFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays, cycleState.lutealPhaseDays)
+        )
+    } else {
+        appColors.accent
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -103,7 +117,7 @@ fun CalendarScreen(
                         haptics.perform(HapticEvent.Select)
                         activeSheet = ActiveSheet.New(uiState.selectedDate)
                     },
-                    containerColor = appColors.accent,
+                    containerColor = dynamicAccent,
                     contentColor = Color.White
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Добавить")
@@ -176,6 +190,8 @@ fun CalendarScreen(
                             periods = cycleState.periods,
                             marginDays = cycleState.stats.appliedMarginDays,
                             lutealPhaseDays = cycleState.lutealPhaseDays,
+                            gradientDayFill = cycleState.gradientDayFill,
+                            accentColor = dynamicAccent,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
                             masturbationDates = masturbationDates,
@@ -226,6 +242,10 @@ fun CalendarScreen(
         SettingsScreen(
             lutealPhaseDays = cycleState.lutealPhaseDays,
             onLutealPhaseDaysChange = cycleViewModel::setLutealPhaseDays,
+            adaptiveTheme = cycleState.adaptiveTheme,
+            onAdaptiveThemeChange = cycleViewModel::setAdaptiveTheme,
+            gradientDayFill = cycleState.gradientDayFill,
+            onGradientDayFillChange = cycleViewModel::setGradientDayFill,
             onClose = { showSettings = false }
         )
     }
@@ -527,6 +547,8 @@ private fun MonthGrid(
     periods: List<PeriodEntry>,
     marginDays: Int,
     lutealPhaseDays: Int,
+    gradientDayFill: Boolean,
+    accentColor: Color,
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
@@ -546,6 +568,25 @@ private fun MonthGrid(
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
             GridDayInfo(date, cyclePhaseFor(date, periods, marginDays, lutealPhaseDays), date.isAfter(today))
+        }
+    }
+
+    // Each cell's position (0 at a run's first day, 1 at its last) within its own contiguous
+    // run of same-phase days, spanning week-row wraps just like the rounding/merge logic below --
+    // feeds DayCell's optional "gradient fill" shading.
+    val runFractions = remember(gridDays) {
+        FloatArray(gridDays.size).also { fractions ->
+            var i = 0
+            while (i < gridDays.size) {
+                val phase = gridDays[i].phase
+                var j = i
+                while (j < gridDays.size && gridDays[j].phase == phase) j++
+                val runLength = j - i
+                for (k in i until j) {
+                    fractions[k] = if (runLength <= 1) 0.5f else (k - i).toFloat() / (runLength - 1)
+                }
+                i = j
+            }
         }
     }
 
@@ -594,6 +635,9 @@ private fun MonthGrid(
                         isFuture = info.isFuture,
                         roundStart = !mergesWithPrev,
                         roundEnd = !mergesWithNext,
+                        runFraction = runFractions[idx],
+                        gradientFillEnabled = gradientDayFill,
+                        accentColor = accentColor,
                         dayEvents = eventsByDate[dateKey].orEmpty(),
                         intimacyMarker = marker,
                         hasMasturbation = dateKey in masturbationDates,
@@ -618,6 +662,9 @@ private fun DayCell(
     isFuture: Boolean,
     roundStart: Boolean,
     roundEnd: Boolean,
+    runFraction: Float,
+    gradientFillEnabled: Boolean,
+    accentColor: Color,
     dayEvents: List<CalendarEvent>,
     intimacyMarker: IntimacyMarker,
     hasMasturbation: Boolean,
@@ -638,7 +685,12 @@ private fun DayCell(
     )
     val pillShape = RoundedCornerShape(percent = 50)
 
-    val phaseColor = phase?.let { appColors.colorFor(it) }
+    // "Gradient fill" shades a same-phase run darker at its start and lighter at its end (e.g.
+    // building toward ovulation), instead of one flat color across the whole run.
+    val phaseColor = phase?.let {
+        val base = appColors.colorFor(it)
+        if (gradientFillEnabled) base.runGradientShade(runFraction) else base
+    }
     // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
     // since what's coming up is the whole point of a forecast calendar, while already-elapsed
     // days fade back a touch to keep the emphasis forward-looking.
@@ -673,7 +725,7 @@ private fun DayCell(
                     .matchParentSize()
                     .border(
                         width = 2.dp,
-                        color = if (phaseColor != null) Color.White else appColors.accent,
+                        color = if (phaseColor != null) Color.White else accentColor,
                         shape = if (phaseColor != null) runShape else pillShape
                     )
             )
