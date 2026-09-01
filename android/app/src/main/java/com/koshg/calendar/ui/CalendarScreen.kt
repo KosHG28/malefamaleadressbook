@@ -1,8 +1,9 @@
 package com.koshg.calendar.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -182,6 +183,11 @@ fun CalendarScreen(
                             onDayClick = { date ->
                                 haptics.perform(HapticEvent.Tap)
                                 viewModel.selectDate(date)
+                            },
+                            onDayLongClick = { date ->
+                                haptics.perform(HapticEvent.Select)
+                                viewModel.selectDate(date)
+                                activeSheet = ActiveSheet.New(date)
                             }
                         )
                     }
@@ -530,14 +536,17 @@ private fun MonthGrid(
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
-    onDayClick: (LocalDate) -> Unit
+    onDayClick: (LocalDate) -> Unit,
+    onDayLongClick: (LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
     val firstOfMonth = viewMonth.atDay(1)
     val firstWeekdayIndex = firstOfMonth.dayOfWeek.value - 1 // Monday = 0 .. Sunday = 6
     val gridStart = firstOfMonth.minusDays(firstWeekdayIndex.toLong())
-    val totalCells = firstWeekdayIndex + viewMonth.lengthOfMonth()
-    val weeks = (totalCells + 6) / 7
+    // Always 6 weeks, even though a month only strictly needs 5 sometimes -- a fixed row
+    // count keeps every page the same height, so swiping between months doesn't visibly
+    // resize the grid.
+    val weeks = 6
 
     val gridDays = remember(viewMonth, periods, marginDays) {
         (0 until weeks * 7).map { i ->
@@ -589,6 +598,7 @@ private fun MonthGrid(
                         intimacyMarker = marker,
                         hasMasturbation = dateKey in masturbationDates,
                         onClick = { onDayClick(info.date) },
+                        onLongClick = { onDayLongClick(info.date) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -597,6 +607,7 @@ private fun MonthGrid(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DayCell(
     date: LocalDate,
@@ -611,6 +622,7 @@ private fun DayCell(
     intimacyMarker: IntimacyMarker,
     hasMasturbation: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appColors = appColors()
@@ -650,9 +662,9 @@ private fun DayCell(
     Box(
         modifier = modifier
             .padding(vertical = 2.dp)
-            .height(38.dp)
+            .height(34.dp)
             .then(cellModifier)
-            .clickable(onClick = onClick),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) {
         if (isSelected) {
@@ -678,15 +690,25 @@ private fun DayCell(
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
+                // A white halo sits behind the colored marker ring so it stays legible even
+                // when the marker color is close in hue to the phase fill under it (e.g. a
+                // pink intimacy ring on a red menstrual day) -- most noticeable in light theme.
+                if (markerColor != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .border(2.2.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+                    )
+                }
                 // The marker ring always renders at full brightness, regardless of the cell's
                 // own past/future/adjacent-month fade -- it flags an actual logged entry, not
                 // a prediction, so it should never read as dimmed.
                 when {
-                    isToday -> DottedRing(color = markerColor ?: textColor, size = 27.dp)
+                    isToday -> DottedRing(color = markerColor ?: textColor, size = 25.dp)
                     markerColor != null -> Box(
                         modifier = Modifier
-                            .size(27.dp)
-                            .border(2.dp, markerColor, CircleShape)
+                            .size(25.dp)
+                            .border(1.8.dp, markerColor, CircleShape)
                     )
                 }
                 Text(
