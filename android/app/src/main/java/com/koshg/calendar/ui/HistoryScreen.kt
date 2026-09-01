@@ -61,6 +61,7 @@ fun HistoryScreen(
                     text = "История и тренды",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
+                    color = appColors.textPrimary,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 4.dp)
@@ -92,7 +93,12 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = appColors.textPrimary
+            )
             Spacer(Modifier.height(4.dp))
             content()
         }
@@ -101,14 +107,16 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
 
 @Composable
 private fun StatBlock(label: String, value: String) {
+    val appColors = appColors()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = appColors.textPrimary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = appColors.textSecondary)
     }
 }
 
 @Composable
 private fun CycleLengthSection(periods: List<PeriodEntry>) {
+    val appColors = appColors()
     val sortedStarts = remember(periods) {
         periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
     }
@@ -121,7 +129,7 @@ private fun CycleLengthSection(periods: List<PeriodEntry>) {
             Text(
                 "Добавьте хотя бы два цикла месячных, чтобы увидеть статистику.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
         } else {
             val average = lengths.average().roundToInt()
@@ -141,9 +149,9 @@ private fun CycleLengthSection(periods: List<PeriodEntry>) {
                     Text(
                         "${shortDateLabel(a)} → ${shortDateLabel(b)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = appColors.textSecondary
                     )
-                    Text("${lengths[index]} дн.", style = MaterialTheme.typography.bodySmall)
+                    Text("${lengths[index]} дн.", style = MaterialTheme.typography.bodySmall, color = appColors.textPrimary)
                 }
             }
         }
@@ -152,6 +160,7 @@ private fun CycleLengthSection(periods: List<PeriodEntry>) {
 
 @Composable
 private fun FrequencySection(title: String, dates: List<String>, color: Color) {
+    val appColors = appColors()
     val today = LocalDate.now()
     val months = remember { (5 downTo 0).map { YearMonth.from(today).minusMonths(it.toLong()) } }
     val counts = remember(dates) {
@@ -167,7 +176,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
             Text(
                 "Записей пока нет.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -177,7 +186,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
                         Text(
                             monthShortLabel(month),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = appColors.textSecondary,
                             modifier = Modifier.width(56.dp)
                         )
                         Box(
@@ -185,7 +194,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
                                 .weight(1f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .background(appColors.warmSurface.copy(alpha = 0.5f))
                         ) {
                             Box(
                                 modifier = Modifier
@@ -198,6 +207,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
                         Text(
                             count.toString(),
                             style = MaterialTheme.typography.labelSmall,
+                            color = appColors.textPrimary,
                             modifier = Modifier.width(18.dp),
                             textAlign = TextAlign.End
                         )
@@ -216,7 +226,7 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
             Text(
                 "Записей пока нет.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
         } else {
             val accepted = proposals.count { it.accepted }
@@ -224,7 +234,8 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
             val percent = accepted * 100 / total
             Text(
                 "Принято $accepted из $total ($percent%)",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = appColors.textPrimary
             )
             Spacer(Modifier.height(8.dp))
             Row(
@@ -232,7 +243,7 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
                     .fillMaxWidth()
                     .height(14.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    .background(appColors.warmSurface.copy(alpha = 0.5f))
             ) {
                 if (accepted > 0) {
                     Box(

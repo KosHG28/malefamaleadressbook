@@ -55,9 +55,11 @@ fun DayAgendaPanel(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
+        val appColors = appColors()
         Text(
             text = dayAgendaLabel(selectedDate).replaceFirstChar { it.uppercase() },
             style = MaterialTheme.typography.titleSmall,
+            color = appColors.textPrimary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -65,7 +67,7 @@ fun DayAgendaPanel(
             Text(
                 text = "На этот день записей нет. Нажмите «+», чтобы добавить.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
             return@Column
         }
@@ -104,11 +106,12 @@ private fun AgendaRow(
     subtitle: String?,
     onClick: () -> Unit
 ) {
+    val appColors = appColors()
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .background(appColors.warmSurface.copy(alpha = 0.5f))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -123,9 +126,15 @@ private fun AgendaRow(
         )
         icon()
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = appColors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = appColors.textSecondary)
             }
         }
     }

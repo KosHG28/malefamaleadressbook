@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -121,7 +123,7 @@ fun CalendarScreen(
             ) {
                 CalendarHeader(
                     stats = cycleState.stats,
-                    todayPhase = cyclePhaseFor(LocalDate.now(), cycleState.periods),
+                    todayPhase = cyclePhaseFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays),
                     searchActive = searchActive,
                     searchQuery = uiState.searchQuery,
                     onSearchQueryChange = viewModel::setSearchQuery,
@@ -172,6 +174,7 @@ fun CalendarScreen(
                             selectedDate = uiState.selectedDate,
                             eventsByDate = uiState.eventsByDate,
                             periods = cycleState.periods,
+                            marginDays = cycleState.stats.appliedMarginDays,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
                             masturbationDates = masturbationDates,
@@ -305,14 +308,9 @@ fun CalendarScreen(
         )
 
         is ActiveSheet.New -> UnifiedAddSheet(
-            initialType = AddType.Event,
+            initialType = AddType.Period,
             initialDate = sheet.date,
             onDismiss = { activeSheet = null },
-            onSaveEvent = {
-                haptics.perform(HapticEvent.Confirm)
-                viewModel.saveEvent(it)
-                activeSheet = null
-            },
             onSavePeriod = {
                 haptics.perform(HapticEvent.LogEntry)
                 cycleViewModel.savePeriod(it)
@@ -388,7 +386,7 @@ private fun CalendarHeader(
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = appColors.textSecondary,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onToday) {
@@ -404,7 +402,7 @@ private fun CalendarHeader(
                     text = stats.currentCycleDay?.let { "Цикл, день $it" } ?: "Цикл",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = appColors.textPrimary
                 )
                 if (todayPhase != null) {
                     Text(
@@ -433,14 +431,23 @@ private fun CalendarHeader(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
+            if (stats.isIrregular) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Цикл нерегулярный — точность прогноза по календарю снижена",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.warning
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit) {
+    val appColors = appColors()
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц")
@@ -451,7 +458,7 @@ private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit)
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.5.sp,
-            color = MaterialTheme.colorScheme.onSurface
+            color = appColors.textPrimary
         )
         Spacer(Modifier.width(4.dp))
         IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
@@ -462,6 +469,7 @@ private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit)
 
 @Composable
 private fun WeekdayHeader() {
+    val appColors = appColors()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -474,7 +482,7 @@ private fun WeekdayHeader() {
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = appColors.textSecondary
             )
         }
     }
@@ -501,7 +509,7 @@ private fun PhaseLegend() {
                 Text(
                     text = phase.label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = appColors.textSecondary
                 )
             }
         }
@@ -514,6 +522,7 @@ private fun MonthGrid(
     selectedDate: LocalDate,
     eventsByDate: Map<String, List<CalendarEvent>>,
     periods: List<PeriodEntry>,
+    marginDays: Int,
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
@@ -526,10 +535,10 @@ private fun MonthGrid(
     val totalCells = firstWeekdayIndex + viewMonth.lengthOfMonth()
     val weeks = (totalCells + 6) / 7
 
-    val gridDays = remember(viewMonth, periods) {
+    val gridDays = remember(viewMonth, periods, marginDays) {
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
-            GridDayInfo(date, cyclePhaseFor(date, periods), date.isAfter(today))
+            GridDayInfo(date, cyclePhaseFor(date, periods, marginDays), date.isAfter(today))
         }
     }
 
@@ -620,7 +629,7 @@ private fun DayCell(
     val textColor = when {
         solidFill -> Color.White
         phaseColor != null -> phaseColor
-        else -> MaterialTheme.colorScheme.onSurface
+        else -> appColors.textPrimary
     }
 
     val cellModifier = when {
@@ -668,32 +677,28 @@ private fun DayCell(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 when (intimacyMarker) {
-                    IntimacyMarker.SEX -> Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = "Была близость",
-                        tint = Color.White.copy(alpha = 0.95f),
-                        modifier = Modifier.size(9.dp)
+                    IntimacyMarker.SEX -> MarkerBadge(
+                        icon = Icons.Default.Favorite,
+                        tint = appColors.intimacy,
+                        contentDescription = "Была близость"
                     )
-                    IntimacyMarker.PROPOSAL_ACCEPTED -> Icon(
-                        Icons.Default.FavoriteBorder,
-                        contentDescription = "Предложение принято",
-                        tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.size(9.dp)
+                    IntimacyMarker.PROPOSAL_ACCEPTED -> MarkerBadge(
+                        icon = Icons.Default.FavoriteBorder,
+                        tint = appColors.proposalAccepted,
+                        contentDescription = "Предложение принято"
                     )
-                    IntimacyMarker.PROPOSAL_DECLINED -> Icon(
-                        Icons.Default.FavoriteBorder,
-                        contentDescription = "Предложение отклонено",
-                        tint = Color.White.copy(alpha = 0.4f),
-                        modifier = Modifier.size(9.dp)
+                    IntimacyMarker.PROPOSAL_DECLINED -> MarkerBadge(
+                        icon = Icons.Default.FavoriteBorder,
+                        tint = appColors.proposalDeclined,
+                        contentDescription = "Предложение отклонено"
                     )
                     IntimacyMarker.NONE -> Unit
                 }
                 if (hasMasturbation) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.7f))
+                    MarkerBadge(
+                        icon = Icons.Default.SelfImprovement,
+                        tint = appColors.solo,
+                        contentDescription = "Мастурбация"
                     )
                 }
                 dayEvents.take(2).forEach { evt ->
@@ -706,5 +711,24 @@ private fun DayCell(
                 }
             }
         }
+    }
+}
+
+/**
+ * A small opaque badge behind a marker icon so it stays legible regardless of the cell's own
+ * fill — a solid phase color, a dashed outline, or the plain warm surface all sit behind this
+ * the same way, and [tint] carries the actual per-status meaning (sex vs. accepted/declined
+ * proposal vs. solo) instead of relying on alpha alone to tell them apart.
+ */
+@Composable
+private fun MarkerBadge(icon: ImageVector, tint: Color, contentDescription: String) {
+    Box(
+        modifier = Modifier
+            .size(13.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.92f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(8.dp))
     }
 }

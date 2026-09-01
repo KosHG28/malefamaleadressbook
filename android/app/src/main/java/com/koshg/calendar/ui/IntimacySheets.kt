@@ -1,8 +1,6 @@
 package com.koshg.calendar.ui
 
 import android.app.DatePickerDialog
-import android.app.TimePickerDialog
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,8 +8,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -19,18 +19,21 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,8 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.koshg.calendar.data.CalendarEvent
-import com.koshg.calendar.data.EVENT_COLOR_PALETTE
 import com.koshg.calendar.data.Initiator
 import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
@@ -59,7 +60,6 @@ import com.koshg.calendar.util.toLocalDateOrNull
 import java.time.LocalDate
 
 enum class AddType(val label: String) {
-    Event("Событие"),
     Period("Месячные"),
     Sex("Секс"),
     Proposal("Предложение"),
@@ -67,7 +67,6 @@ enum class AddType(val label: String) {
 }
 
 private fun AddType.icon(): ImageVector = when (this) {
-    AddType.Event -> Icons.Default.DateRange
     AddType.Period -> Icons.Default.WaterDrop
     AddType.Sex -> Icons.Default.Favorite
     AddType.Proposal -> Icons.Default.FavoriteBorder
@@ -78,7 +77,6 @@ private fun AddType.icon(): ImageVector = when (this) {
 private fun AddType.chipColor(): Color {
     val colors = appColors()
     return when (this) {
-        AddType.Event -> MaterialTheme.colorScheme.primary
         AddType.Period -> colors.menstrual
         AddType.Sex -> colors.intimacy
         AddType.Proposal -> colors.proposalAccepted
@@ -126,44 +124,22 @@ private fun TypeChipRow(selected: AddType, onSelect: (AddType) -> Unit) {
     }
 }
 
+/** Rounded, accent-tinted text field colors shared by every sheet, in place of stock Material outlines. */
 @Composable
-private fun ColorPickerRow(selected: Int, onSelect: (Int) -> Unit) {
-    val haptics = LocalHaptics.current
-    Column {
-        Text("Цвет", style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            EVENT_COLOR_PALETTE.forEach { c ->
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(c))
-                        .border(
-                            width = if (selected == c) 2.dp else 0.dp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            shape = CircleShape
-                        )
-                        .clickable {
-                            haptics.perform(HapticEvent.Tap)
-                            onSelect(c)
-                        }
-                )
-            }
-        }
-    }
+internal fun sheetFieldColors(): TextFieldColors {
+    val appColors = appColors()
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = appColors.accent,
+        focusedLabelColor = appColors.accent,
+        cursorColor = appColors.accent,
+        unfocusedBorderColor = appColors.textSecondary.copy(alpha = 0.35f),
+        unfocusedLabelColor = appColors.textSecondary,
+        focusedTextColor = appColors.textPrimary,
+        unfocusedTextColor = appColors.textPrimary
+    )
 }
 
-private fun pickTime(context: Context, current: String, onPicked: (String) -> Unit) {
-    val parts = current.split(":").mapNotNull { it.toIntOrNull() }
-    val hour = parts.getOrElse(0) { 10 }
-    val minute = parts.getOrElse(1) { 0 }
-    TimePickerDialog(
-        context,
-        { _, h, m -> onPicked("%02d:%02d".format(h, m)) },
-        hour, minute, true
-    ).show()
-}
+internal val sheetFieldShape = RoundedCornerShape(14.dp)
 
 /**
  * Single sheet for creating a new entry of any kind — a row of colored type chips up top swaps
@@ -176,7 +152,6 @@ fun UnifiedAddSheet(
     initialType: AddType,
     initialDate: LocalDate,
     onDismiss: () -> Unit,
-    onSaveEvent: (CalendarEvent) -> Unit,
     onSavePeriod: (PeriodEntry) -> Unit,
     onSaveSex: (SexEntry) -> Unit,
     onSaveProposal: (ProposalEntry) -> Unit,
@@ -184,24 +159,22 @@ fun UnifiedAddSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptics = LocalHaptics.current
-    val context = LocalContext.current
+    val appColors = appColors()
 
     var type by remember { mutableStateOf(initialType) }
     var date by remember { mutableStateOf(initialDate) }
     var notes by remember { mutableStateOf("") }
-
-    var title by remember { mutableStateOf("") }
-    var allDay by remember { mutableStateOf(false) }
-    var startTime by remember { mutableStateOf("10:00") }
-    var endTime by remember { mutableStateOf("11:00") }
-    var eventColor by remember { mutableStateOf(EVENT_COLOR_PALETTE.first()) }
 
     var initiator by remember { mutableStateOf(Initiator.ME) }
     var orgasmCount by remember { mutableStateOf(0) }
     var accepted by remember { mutableStateOf(true) }
     var declineReason by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = appColors.warmSurface
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -209,54 +182,13 @@ fun UnifiedAddSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Новая запись", style = MaterialTheme.typography.titleLarge)
+            Text("Новая запись", style = MaterialTheme.typography.titleLarge, color = appColors.textPrimary)
 
             TypeChipRow(selected = type) { type = it }
 
             DateField(date) { date = it }
 
             when (type) {
-                AddType.Event -> {
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text("Название") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = allDay, onCheckedChange = {
-                            haptics.perform(HapticEvent.Toggle)
-                            allDay = it
-                        })
-                        Spacer(Modifier.width(8.dp))
-                        Text("Весь день")
-                    }
-                    if (!allDay) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedTextField(
-                                value = startTime,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Начало") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { pickTime(context, startTime) { startTime = it } }
-                            )
-                            OutlinedTextField(
-                                value = endTime,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Конец") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { pickTime(context, endTime) { endTime = it } }
-                            )
-                        }
-                    }
-                    ColorPickerRow(selected = eventColor) { eventColor = it }
-                }
-
                 AddType.Period -> Unit
 
                 AddType.Sex -> {
@@ -272,13 +204,15 @@ fun UnifiedAddSheet(
                             accepted = it
                         })
                         Spacer(Modifier.width(8.dp))
-                        Text(if (accepted) "Принято" else "Отклонено")
+                        Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
                     }
                     if (!accepted) {
                         OutlinedTextField(
                             value = declineReason,
                             onValueChange = { declineReason = it },
                             label = { Text("Причина отказа") },
+                            shape = sheetFieldShape,
+                            colors = sheetFieldColors(),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -296,6 +230,8 @@ fun UnifiedAddSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -304,21 +240,6 @@ fun UnifiedAddSheet(
                 onDelete = null,
                 onSave = {
                     when (type) {
-                        AddType.Event -> if (title.isNotBlank()) {
-                            onSaveEvent(
-                                CalendarEvent(
-                                    id = newEventId(),
-                                    title = title.trim(),
-                                    date = date.toString(),
-                                    allDay = allDay,
-                                    startTime = if (allDay) null else startTime,
-                                    endTime = if (allDay) null else endTime,
-                                    color = eventColor,
-                                    notes = notes.trim()
-                                )
-                            )
-                        }
-
                         AddType.Period -> onSavePeriod(
                             PeriodEntry(id = newEventId(), startDate = date.toString(), notes = notes.trim())
                         )
@@ -360,33 +281,48 @@ fun UnifiedAddSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** A rounded, tappable pill showing the picked date — replaces a stock read-only text field. */
 @Composable
 private fun DateField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
     val context = LocalContext.current
-    OutlinedTextField(
-        value = fullDateLabel(date),
-        onValueChange = {},
-        readOnly = true,
-        label = { Text("Дата") },
+    val appColors = appColors()
+    val haptics = LocalHaptics.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .clip(sheetFieldShape)
+            .background(appColors.warmBackground)
+            .border(1.dp, appColors.accent.copy(alpha = 0.3f), sheetFieldShape)
             .clickable {
+                haptics.perform(HapticEvent.Tap)
                 DatePickerDialog(
                     context,
                     { _, y, m, d -> onDateChange(LocalDate.of(y, m + 1, d)) },
                     date.year, date.monthValue - 1, date.dayOfMonth
                 ).show()
             }
-    )
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Icon(Icons.Default.DateRange, contentDescription = null, tint = appColors.accent, modifier = Modifier.size(20.dp))
+        Text(
+            fullDateLabel(date),
+            style = MaterialTheme.typography.bodyLarge,
+            color = appColors.textPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = appColors.textSecondary, modifier = Modifier.size(18.dp))
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit) {
     val haptics = LocalHaptics.current
+    val appColors = appColors()
     Column {
-        Text("Инициатор", style = MaterialTheme.typography.labelLarge)
+        Text("Инициатор", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
         Spacer(Modifier.height(6.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             Initiator.entries.forEachIndexed { index, entry ->
@@ -406,32 +342,43 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
 @Composable
 private fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Unit) {
     val haptics = LocalHaptics.current
+    val appColors = appColors()
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary, modifier = Modifier.weight(1f))
         IconButton(onClick = {
             if (count > 0) {
                 haptics.perform(HapticEvent.Tap)
                 onCountChange(count - 1)
             }
-        }) { Icon(Icons.Default.Remove, contentDescription = "Меньше") }
-        Text(count.toString(), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 4.dp))
+        }) { Icon(Icons.Default.Remove, contentDescription = "Меньше", tint = appColors.accent) }
+        Text(
+            count.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            color = appColors.textPrimary,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
         IconButton(onClick = {
             haptics.perform(HapticEvent.Tap)
             onCountChange(count + 1)
-        }) { Icon(Icons.Default.Add, contentDescription = "Больше") }
+        }) { Icon(Icons.Default.Add, contentDescription = "Больше", tint = appColors.accent) }
     }
 }
 
 @Composable
 private fun SheetActions(onDismiss: () -> Unit, onDelete: (() -> Unit)?, onSave: () -> Unit) {
+    val appColors = appColors()
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         if (onDelete != null) {
             TextButton(onClick = onDelete) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.weight(1f))
         }
-        TextButton(onClick = onDismiss) { Text("Отмена") }
+        TextButton(onClick = onDismiss) { Text("Отмена", color = appColors.textSecondary) }
         Spacer(Modifier.width(8.dp))
-        Button(onClick = onSave) { Text("Сохранить") }
+        Button(
+            onClick = onSave,
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
+        ) { Text("Сохранить") }
     }
 }
 
@@ -445,10 +392,11 @@ fun PeriodSheet(
     onDelete: (() -> Unit)?
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val appColors = appColors()
     var date by remember { mutableStateOf(entry?.startDate?.toLocalDateOrNull() ?: initialDate) }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -458,7 +406,8 @@ fun PeriodSheet(
         ) {
             Text(
                 if (entry == null) "Начало месячных" else "Редактировать запись",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                color = appColors.textPrimary
             )
             DateField(date) { date = it }
             OutlinedTextField(
@@ -467,6 +416,8 @@ fun PeriodSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
             SheetActions(
@@ -496,12 +447,13 @@ fun SexSheet(
     onDelete: (() -> Unit)?
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val appColors = appColors()
     var date by remember { mutableStateOf(entry?.date?.toLocalDateOrNull() ?: initialDate) }
     var initiator by remember { mutableStateOf(entry?.initiator?.let(Initiator::fromStorage) ?: Initiator.ME) }
     var orgasmCount by remember { mutableStateOf(entry?.orgasmCount ?: 0) }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -509,7 +461,11 @@ fun SexSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(if (entry == null) "Близость" else "Редактировать запись", style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (entry == null) "Близость" else "Редактировать запись",
+                style = MaterialTheme.typography.titleLarge,
+                color = appColors.textPrimary
+            )
             DateField(date) { date = it }
             InitiatorSelector(initiator) { initiator = it }
             CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
@@ -519,6 +475,8 @@ fun SexSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
             SheetActions(
@@ -551,13 +509,14 @@ fun ProposalSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptics = LocalHaptics.current
+    val appColors = appColors()
     var date by remember { mutableStateOf(entry?.date?.toLocalDateOrNull() ?: initialDate) }
     var initiator by remember { mutableStateOf(entry?.initiator?.let(Initiator::fromStorage) ?: Initiator.ME) }
     var accepted by remember { mutableStateOf(entry?.accepted ?: true) }
     var declineReason by remember { mutableStateOf(entry?.declineReason ?: "") }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -565,7 +524,11 @@ fun ProposalSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(if (entry == null) "Предложение близости" else "Редактировать запись", style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (entry == null) "Предложение близости" else "Редактировать запись",
+                style = MaterialTheme.typography.titleLarge,
+                color = appColors.textPrimary
+            )
             DateField(date) { date = it }
             InitiatorSelector(initiator) { initiator = it }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -574,13 +537,15 @@ fun ProposalSheet(
                     accepted = it
                 })
                 Spacer(Modifier.width(8.dp))
-                Text(if (accepted) "Принято" else "Отклонено")
+                Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
             }
             if (!accepted) {
                 OutlinedTextField(
                     value = declineReason,
                     onValueChange = { declineReason = it },
                     label = { Text("Причина отказа") },
+                    shape = sheetFieldShape,
+                    colors = sheetFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -590,6 +555,8 @@ fun ProposalSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
             SheetActions(
@@ -622,12 +589,13 @@ fun MasturbationSheet(
     onDelete: (() -> Unit)?
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val appColors = appColors()
     var date by remember { mutableStateOf(entry?.date?.toLocalDateOrNull() ?: initialDate) }
     var person by remember { mutableStateOf(entry?.person?.let(Initiator::fromStorage) ?: Initiator.ME) }
     var orgasmCount by remember { mutableStateOf(entry?.orgasmCount ?: 0) }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -635,7 +603,11 @@ fun MasturbationSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(if (entry == null) "Мастурбация" else "Редактировать запись", style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (entry == null) "Мастурбация" else "Редактировать запись",
+                style = MaterialTheme.typography.titleLarge,
+                color = appColors.textPrimary
+            )
             DateField(date) { date = it }
             InitiatorSelector(person) { person = it }
             CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
@@ -645,6 +617,8 @@ fun MasturbationSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
             SheetActions(

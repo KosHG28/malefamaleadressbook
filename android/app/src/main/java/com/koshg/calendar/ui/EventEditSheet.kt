@@ -8,11 +8,18 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +39,7 @@ import com.koshg.calendar.data.CalendarEvent
 import com.koshg.calendar.data.EVENT_COLOR_PALETTE
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.appColors
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +53,7 @@ fun EventEditSheet(
 ) {
     val context = LocalContext.current
     val haptics = LocalHaptics.current
+    val appColors = appColors()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var title by remember { mutableStateOf(event?.title ?: "") }
@@ -55,7 +64,7 @@ fun EventEditSheet(
     var color by remember { mutableStateOf(event?.color ?: EVENT_COLOR_PALETTE.first()) }
     var notes by remember { mutableStateOf(event?.notes ?: "") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -65,7 +74,8 @@ fun EventEditSheet(
         ) {
             Text(
                 text = if (event == null) "Новое событие" else "Редактировать событие",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                color = appColors.textPrimary
             )
 
             OutlinedTextField(
@@ -73,24 +83,33 @@ fun EventEditSheet(
                 onValueChange = { title = it },
                 label = { Text("Название") },
                 singleLine = true,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            OutlinedTextField(
-                value = date.toString(),
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Дата") },
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(sheetFieldShape)
+                    .background(appColors.warmBackground)
+                    .border(1.dp, appColors.accent.copy(alpha = 0.3f), sheetFieldShape)
                     .clickable {
+                        haptics.perform(HapticEvent.Tap)
                         DatePickerDialog(
                             context,
                             { _, y, m, d -> date = LocalDate.of(y, m + 1, d) },
                             date.year, date.monthValue - 1, date.dayOfMonth
                         ).show()
                     }
-            )
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Icon(Icons.Default.DateRange, contentDescription = null, tint = appColors.accent, modifier = Modifier.size(20.dp))
+                Text(date.toString(), style = MaterialTheme.typography.bodyLarge, color = appColors.textPrimary, modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = appColors.textSecondary, modifier = Modifier.size(18.dp))
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = allDay, onCheckedChange = {
@@ -98,7 +117,7 @@ fun EventEditSheet(
                     allDay = it
                 })
                 Spacer(Modifier.width(8.dp))
-                Text("Весь день")
+                Text("Весь день", color = appColors.textPrimary)
             }
 
             if (!allDay) {
@@ -108,6 +127,8 @@ fun EventEditSheet(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Начало") },
+                        shape = sheetFieldShape,
+                        colors = sheetFieldColors(),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { pickTime(context, startTime) { startTime = it } }
@@ -117,6 +138,8 @@ fun EventEditSheet(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Конец") },
+                        shape = sheetFieldShape,
+                        colors = sheetFieldColors(),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { pickTime(context, endTime) { endTime = it } }
@@ -125,7 +148,7 @@ fun EventEditSheet(
             }
 
             Column {
-                Text("Цвет", style = MaterialTheme.typography.labelLarge)
+                Text("Цвет", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     EVENT_COLOR_PALETTE.forEach { c ->
@@ -136,7 +159,7 @@ fun EventEditSheet(
                                 .background(Color(c))
                                 .border(
                                     width = if (color == c) 2.dp else 0.dp,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = appColors.textPrimary,
                                     shape = CircleShape
                                 )
                                 .clickable { color = c }
@@ -151,6 +174,8 @@ fun EventEditSheet(
                 label = { Text("Заметка") },
                 minLines = 2,
                 maxLines = 4,
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -165,7 +190,7 @@ fun EventEditSheet(
                     }
                     Spacer(Modifier.weight(1f))
                 }
-                TextButton(onClick = onDismiss) { Text("Отмена") }
+                TextButton(onClick = onDismiss) { Text("Отмена", color = appColors.textSecondary) }
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
@@ -184,7 +209,9 @@ fun EventEditSheet(
                             )
                         }
                     },
-                    enabled = title.isNotBlank()
+                    enabled = title.isNotBlank(),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
                 ) { Text("Сохранить") }
             }
         }

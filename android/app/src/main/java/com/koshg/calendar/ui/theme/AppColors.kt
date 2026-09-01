@@ -25,7 +25,13 @@ data class AppColors(
     val menstrual: Color,
     val follicular: Color,
     val ovulatory: Color,
-    val luteal: Color
+    val luteal: Color,
+    /** Explicit, theme-guaranteed text colors for content drawn on the gradient/warm surfaces —
+     *  deliberately independent of MaterialTheme's dynamic (wallpaper-derived) color scheme,
+     *  which can pick low-contrast tones on some devices. */
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val warning: Color
 )
 
 private val LightAppColors = AppColors(
@@ -46,7 +52,10 @@ private val LightAppColors = AppColors(
     menstrual = Color(0xFFE0536B),
     follicular = Color(0xFF7C8CB8),
     ovulatory = Color(0xFF2F9DA6),
-    luteal = Color(0xFF8B5FBF)
+    luteal = Color(0xFF8B5FBF),
+    textPrimary = Color(0xFF2A211C),
+    textSecondary = Color(0xFF8A7A6E),
+    warning = Color(0xFFB8722B)
 )
 
 private val DarkAppColors = AppColors(
@@ -67,7 +76,10 @@ private val DarkAppColors = AppColors(
     menstrual = Color(0xFFE0536B),
     follicular = Color(0xFF7C8CB8),
     ovulatory = Color(0xFF2F9DA6),
-    luteal = Color(0xFF8B5FBF)
+    luteal = Color(0xFF8B5FBF),
+    textPrimary = Color(0xFFF5EDE8),
+    textSecondary = Color(0xFFB8A99C),
+    warning = Color(0xFFE0A868)
 )
 
 @Composable
