@@ -4,11 +4,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -483,26 +481,39 @@ private fun WeekdayHeader() {
 @Composable
 private fun PhaseLegend() {
     val appColors = appColors()
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        CyclePhase.entries.forEach { phase ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(appColors.colorFor(phase))
-                )
-                Text(
-                    text = phase.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = appColors.textSecondary
-                )
+        // Row-major 2-column grid, each cell equal-width, so dots and labels line up on a
+        // consistent grid regardless of how long each phase's name is -- a single scrolling
+        // row with fixed gaps looked uneven once "Пик ЛГ" joined the four longer names.
+        CyclePhase.entries.chunked(2).forEach { rowPhases ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                rowPhases.forEach { phase ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(appColors.colorFor(phase))
+                        )
+                        Text(
+                            text = phase.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = appColors.textSecondary
+                        )
+                    }
+                    if (rowPhases.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
@@ -548,8 +559,14 @@ private fun MonthGrid(
                 for (dow in 0 until 7) {
                     val idx = week * 7 + dow
                     val info = gridDays[idx]
-                    val prevInfo = if (dow > 0) gridDays[idx - 1] else null
-                    val nextInfo = if (dow < 6) gridDays[idx + 1] else null
+                    // Deliberately look at the true previous/next day in the flat list, not just
+                    // within this row -- a phase run that wraps from Sunday to the next Monday is
+                    // still one continuous run, so its edge at the row break should stay square
+                    // (roundStart/roundEnd = false there), same as any other internal join. Only
+                    // the row's own horizontal gap (below) is limited to within-row neighbors,
+                    // since that's a rendering concern, not a phase-continuity one.
+                    val prevInfo = if (idx > 0) gridDays[idx - 1] else null
+                    val nextInfo = if (idx < gridDays.lastIndex) gridDays[idx + 1] else null
 
                     val mergesWithPrev = prevInfo != null &&
                         info.phase != null && info.phase == prevInfo.phase
