@@ -47,6 +47,8 @@ fun HistoryScreen(
     proposalEntries: List<ProposalEntry>,
     masturbationEntries: List<MasturbationEntry>,
     isIrregular: Boolean,
+    marginDays: Int,
+    lutealPhaseDays: Int,
     onClose: () -> Unit,
     onOpenYearOverview: () -> Unit
 ) {
@@ -89,7 +91,15 @@ fun HistoryScreen(
                     item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
                     item { ProposalStatsSection(proposalEntries) }
                     item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
-                    item { CorrelationInsightsSection(periods, sexEntries, proposalEntries) }
+                    item {
+                        CorrelationInsightsSection(
+                            periods,
+                            sexEntries,
+                            proposalEntries,
+                            marginDays,
+                            lutealPhaseDays
+                        )
+                    }
                     item { Spacer(Modifier.height(24.dp)) }
                 }
             }
@@ -304,11 +314,13 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
 private fun CorrelationInsightsSection(
     periods: List<PeriodEntry>,
     sexEntries: List<SexEntry>,
-    proposalEntries: List<ProposalEntry>
+    proposalEntries: List<ProposalEntry>,
+    marginDays: Int,
+    lutealPhaseDays: Int
 ) {
     val appColors = appColors()
-    val insights = remember(periods, sexEntries, proposalEntries) {
-        computeCorrelationInsights(periods, sexEntries, proposalEntries)
+    val insights = remember(periods, sexEntries, proposalEntries, marginDays, lutealPhaseDays) {
+        computeCorrelationInsights(periods, sexEntries, proposalEntries, marginDays, lutealPhaseDays)
     }
     SectionCard(title = "Корреляции") {
         if (insights.insights.isEmpty()) {

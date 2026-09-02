@@ -1,6 +1,7 @@
 package com.koshg.calendar.ui
 
 import android.Manifest
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -46,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +95,9 @@ import com.koshg.calendar.util.cyclePhaseFor
 import com.koshg.calendar.util.ovulationDateFor
 import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -157,6 +162,13 @@ private fun CalendarScreenContent(
     // destination/source for via the system document picker, independent of Android's own Auto
     // Backup: it's on-demand, portable to another device without the same Google account, and
     // readable/editable outside the app.
+    //
+    // The actual reading/writing and JSON work run on Dispatchers.IO, not on the picker's
+    // main-thread callback: a document-provider URI can be backed by anything, cloud storage
+    // included, so a slow stream would otherwise block the UI thread outright. Either way the
+    // outcome is reported -- a silently swallowed failure is indistinguishable from the picker
+    // simply not having done anything.
+    val ioScope = rememberCoroutineScope()
     val exportDataLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val snapshot = DataSnapshot(
@@ -166,20 +178,40 @@ private fun CalendarScreenContent(
             proposalEntries = intimacyState.proposalEntries,
             masturbationEntries = intimacyState.masturbationEntries
         )
-        runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(snapshot.toExportJson().toByteArray()) }
+        ioScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val json = snapshot.toExportJson()
+                    val stream = context.contentResolver.openOutputStream(uri)
+                        ?: error("Не удалось открыть файл для записи")
+                    stream.use { it.write(json.toByteArray()) }
+                }
+            }
+            val message = if (result.isSuccess) "Данные сохранены" else "Не удалось сохранить данные"
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
     val importDataLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            val json = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } ?: return@runCatching
-            val snapshot = parseDataSnapshot(json)
-            snapshot.periods.forEach(cycleViewModel::savePeriod)
-            snapshot.events.forEach(viewModel::saveEvent)
-            snapshot.sexEntries.forEach(intimacyViewModel::saveSexEntry)
-            snapshot.proposalEntries.forEach(intimacyViewModel::saveProposalEntry)
-            snapshot.masturbationEntries.forEach(intimacyViewModel::saveMasturbationEntry)
+        ioScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val json = context.contentResolver.openInputStream(uri)
+                        ?.use { it.readBytes().decodeToString() }
+                        ?: error("Не удалось открыть файл для чтения")
+                    parseDataSnapshot(json)
+                }
+            }
+            result.onSuccess { snapshot ->
+                snapshot.periods.forEach(cycleViewModel::savePeriod)
+                snapshot.events.forEach(viewModel::saveEvent)
+                snapshot.sexEntries.forEach(intimacyViewModel::saveSexEntry)
+                snapshot.proposalEntries.forEach(intimacyViewModel::saveProposalEntry)
+                snapshot.masturbationEntries.forEach(intimacyViewModel::saveMasturbationEntry)
+                Toast.makeText(context, "Данные загружены", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -376,6 +408,8 @@ private fun CalendarScreenContent(
             proposalEntries = intimacyState.proposalEntries,
             masturbationEntries = intimacyState.masturbationEntries,
             isIrregular = cycleState.stats.isIrregular,
+            marginDays = cycleState.stats.appliedMarginDays,
+            lutealPhaseDays = cycleState.lutealPhaseDays,
             onClose = { showHistory = false },
             onOpenYearOverview = {
                 showHistory = false

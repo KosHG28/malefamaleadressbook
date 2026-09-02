@@ -19,8 +19,11 @@ private const val KEY_SUGGESTIONS_ENABLED = "suggestions_enabled"
 private const val KEY_SUGGESTION_DISMISSED_UNTIL = "suggestion_dismissed_until_epoch_day"
 private const val KEY_THEME_MODE = "theme_mode"
 private const val KEY_REMINDERS_ENABLED = "reminders_enabled"
-private const val KEY_LAST_PERIOD_REMINDER_EPOCH_DAY = "last_period_reminder_epoch_day"
-private const val KEY_LAST_OVULATION_REMINDER_EPOCH_DAY = "last_ovulation_reminder_epoch_day"
+// Deliberately new keys, not the old "last_*_reminder_epoch_day" pair: those stored the day a
+// reminder fired, these store the predicted date it was about, so reusing them would compare two
+// different things.
+private const val KEY_PERIOD_REMINDER_NOTIFIED_FOR = "period_reminder_notified_for_epoch_day"
+private const val KEY_OVULATION_REMINDER_NOTIFIED_FOR = "ovulation_reminder_notified_for_epoch_day"
 
 /** The one launcher alias AndroidManifest.xml ships with android:enabled="true"; the other four
  *  are declared disabled. Needed to resolve COMPONENT_ENABLED_STATE_DEFAULT, which means "as the
@@ -167,14 +170,15 @@ class CyclePreferences(context: Context) {
             ReminderScheduler.sync(appContext, value && hasNotificationPermission())
         }
 
-    /** Epoch day the period-approaching reminder last fired, so a same-day worker re-run
-     *  (retry, doze-window slip) never posts it twice. */
-    var lastPeriodReminderEpochDay: Long
-        get() = prefs.getLong(KEY_LAST_PERIOD_REMINDER_EPOCH_DAY, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_PERIOD_REMINDER_EPOCH_DAY, value).apply()
+    /** Epoch day of the *predicted period start* the approaching-period reminder was last posted
+     *  for -- keyed on the prediction, not on the day it fired, so the reminder can be caught up
+     *  on a later day (a missed worker run) while still only ever posting once per cycle. */
+    var periodReminderNotifiedForEpochDay: Long
+        get() = prefs.getLong(KEY_PERIOD_REMINDER_NOTIFIED_FOR, 0L)
+        set(value) = prefs.edit().putLong(KEY_PERIOD_REMINDER_NOTIFIED_FOR, value).apply()
 
-    /** Same de-duplication as [lastPeriodReminderEpochDay], for the ovulation-day reminder. */
-    var lastOvulationReminderEpochDay: Long
-        get() = prefs.getLong(KEY_LAST_OVULATION_REMINDER_EPOCH_DAY, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_OVULATION_REMINDER_EPOCH_DAY, value).apply()
+    /** Same de-duplication as [periodReminderNotifiedForEpochDay], for the ovulation reminder. */
+    var ovulationReminderNotifiedForEpochDay: Long
+        get() = prefs.getLong(KEY_OVULATION_REMINDER_NOTIFIED_FOR, 0L)
+        set(value) = prefs.edit().putLong(KEY_OVULATION_REMINDER_NOTIFIED_FOR, value).apply()
 }

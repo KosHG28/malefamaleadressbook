@@ -44,12 +44,16 @@ fun computeCorrelationInsights(
     periods: List<PeriodEntry>,
     sexEntries: List<SexEntry>,
     proposalEntries: List<ProposalEntry>,
+    marginDays: Int = 0,
     lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
 ): CorrelationInsights {
     if (periods.size < 2) return CorrelationInsights(emptyList())
 
+    // Both cycle-model parameters have to be the ones the calendar itself is drawn with, or an
+    // entry gets bucketed into a different phase here than the day it sits on is painted with --
+    // the app would then say two different things about the same date.
     fun phaseOf(dateStr: String): CyclePhase? =
-        dateStr.toLocalDateOrNull()?.let { cyclePhaseFor(it, periods, lutealPhaseDays = lutealPhaseDays) }
+        dateStr.toLocalDateOrNull()?.let { cyclePhaseFor(it, periods, marginDays, lutealPhaseDays) }
 
     val tallies = CyclePhase.entries.associateWith { PhaseTally() }
 

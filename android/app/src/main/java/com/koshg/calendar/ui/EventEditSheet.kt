@@ -40,6 +40,7 @@ import com.koshg.calendar.data.EVENT_COLOR_PALETTE
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.util.toLocalDateOrNull
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,7 +58,10 @@ fun EventEditSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var title by remember { mutableStateOf(event?.title ?: "") }
-    var date by remember { mutableStateOf(event?.date?.let { LocalDate.parse(it) } ?: initialDate) }
+    // Parsed leniently, like every other sheet: a stored date string is not guaranteed well-formed
+    // (an imported JSON file may have been hand-edited), and LocalDate.parse would throw here,
+    // taking the app down on a tap that only meant to open an event for editing.
+    var date by remember { mutableStateOf(event?.date?.toLocalDateOrNull() ?: initialDate) }
     var allDay by remember { mutableStateOf(event?.allDay ?: false) }
     var startTime by remember { mutableStateOf(event?.startTime ?: "10:00") }
     var endTime by remember { mutableStateOf(event?.endTime ?: "11:00") }

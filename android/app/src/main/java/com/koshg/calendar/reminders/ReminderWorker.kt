@@ -17,8 +17,14 @@ import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** How many days before the predicted period start the reminder fires. */
+/** How many days before the predicted period start the reminder fires. Also the width of the
+ *  catch-up window: a run missed on the lead day still notifies on any later day up to the
+ *  predicted date itself, rather than skipping the cycle. */
 private const val PERIOD_REMINDER_LEAD_DAYS = 2L
+
+/** How late an ovulation reminder may still be posted after the predicted day, when the worker
+ *  didn't get to run on the day itself. One day: past that the notification stops being useful. */
+private const val OVULATION_REMINDER_CATCH_UP_DAYS = 1L
 
 private const val NOTIFICATION_ID_PERIOD = 1001
 private const val NOTIFICATION_ID_OVULATION = 1002
@@ -46,26 +52,36 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val today = LocalDate.now()
         val stats = computeCycleStats(periods, today = today, lutealPhaseDays = preferences.lutealPhaseDays)
         val notifier = NotificationManagerCompat.from(applicationContext)
-        val todayEpochDay = today.toEpochDay()
 
+        // Both checks look at a window rather than one exact day, and de-duplicate on the
+        // predicted date rather than on today: a periodic worker is not guaranteed to run on any
+        // given day (doze, battery saver, the phone simply off), and an "is it exactly two days
+        // out?" test silently skips the whole cycle whenever that day's run is missed.
         stats.predictedNextPeriod?.let { predicted ->
             val daysUntil = ChronoUnit.DAYS.between(today, predicted)
-            if (daysUntil == PERIOD_REMINDER_LEAD_DAYS && preferences.lastPeriodReminderEpochDay != todayEpochDay) {
-                notifier.notify(
-                    NOTIFICATION_ID_PERIOD,
-                    buildNotification("Месячные скоро", "По прогнозу — через $PERIOD_REMINDER_LEAD_DAYS дня")
-                )
-                preferences.lastPeriodReminderEpochDay = todayEpochDay
+            val inWindow = daysUntil in 0..PERIOD_REMINDER_LEAD_DAYS
+            if (inWindow && preferences.periodReminderNotifiedForEpochDay != predicted.toEpochDay()) {
+                val text = when (daysUntil) {
+                    0L -> "По прогнозу — сегодня"
+                    1L -> "По прогнозу — завтра"
+                    else -> "По прогнозу — через $daysUntil дня"
+                }
+                notifier.notify(NOTIFICATION_ID_PERIOD, buildNotification("Месячные скоро", text))
+                preferences.periodReminderNotifiedForEpochDay = predicted.toEpochDay()
             }
         }
 
         stats.predictedOvulation?.let { predicted ->
-            if (predicted == today && preferences.lastOvulationReminderEpochDay != todayEpochDay) {
-                notifier.notify(
-                    NOTIFICATION_ID_OVULATION,
-                    buildNotification("День овуляции", "Сегодня примерный день овуляции, по текущему прогнозу")
-                )
-                preferences.lastOvulationReminderEpochDay = todayEpochDay
+            val daysSince = ChronoUnit.DAYS.between(predicted, today)
+            val inWindow = daysSince in 0..OVULATION_REMINDER_CATCH_UP_DAYS
+            if (inWindow && preferences.ovulationReminderNotifiedForEpochDay != predicted.toEpochDay()) {
+                val text = if (daysSince == 0L) {
+                    "Сегодня примерный день овуляции, по текущему прогнозу"
+                } else {
+                    "Вчера был примерный день овуляции, по текущему прогнозу"
+                }
+                notifier.notify(NOTIFICATION_ID_OVULATION, buildNotification("День овуляции", text))
+                preferences.ovulationReminderNotifiedForEpochDay = predicted.toEpochDay()
             }
         }
 
