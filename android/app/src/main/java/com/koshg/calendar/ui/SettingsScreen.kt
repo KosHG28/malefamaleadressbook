@@ -8,7 +8,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -186,6 +188,41 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
                         color = appColors.textSecondary
                     )
                 }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // A tiny mock of the calendar's own accent/background elements -- appColors() already
+        // resolves the just-tapped palette (LocalPalette flows down from the committed setting),
+        // so this updates live the instant a swatch above is picked, no need to leave Settings
+        // to see the effect on the actual calendar.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Brush.horizontalGradient(listOf(appColors.gradientTop, appColors.gradientBottom)))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.size(28.dp).clip(CircleShape).background(appColors.accent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "14",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text("Предпросмотр", style = MaterialTheme.typography.labelSmall, color = appColors.textSecondary)
+            }
+            Box(
+                modifier = Modifier.size(30.dp).clip(CircleShape).background(appColors.accent),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
         }
     }

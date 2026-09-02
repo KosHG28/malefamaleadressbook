@@ -29,7 +29,11 @@ private data class PhaseTally(
     val totalProposals get() = accepted + declined
 }
 
-data class CorrelationInsights(val sentences: List<String>)
+/** One correlation finding, tagged with the phase it's about so the UI can prefix it with that
+ *  phase's legend color for a quick visual anchor. */
+data class CorrelationInsight(val phase: CyclePhase, val sentence: String)
+
+data class CorrelationInsights(val insights: List<CorrelationInsight>)
 
 /**
  * Looks for simple, sample-size-gated patterns between cycle phase and intimacy initiative/
@@ -71,7 +75,7 @@ fun computeCorrelationInsights(
         }
     }
 
-    val sentences = mutableListOf<String>()
+    val insights = mutableListOf<CorrelationInsight>()
 
     val overallPartnerShare = tallies.values.sumOf { it.partnerInitiated }
         .toFloat()
@@ -83,20 +87,22 @@ fun computeCorrelationInsights(
         ?.let { (phase, tally) ->
             val share = tally.partnerInitiated.toFloat() / tally.totalInitiations
             if (share - overallPartnerShare >= INITIATOR_SKEW_THRESHOLD) {
-                sentences += "В фазу «${phase.label}» инициатива чаще исходит от партнёра " +
-                    "(${(share * 100).roundToInt()}% случаев)."
+                insights += CorrelationInsight(
+                    phase,
+                    "В фазу «${phase.label}» инициатива чаще исходит от партнёра (${(share * 100).roundToInt()}% случаев)."
+                )
             }
         }
 
     val withProposals = tallies.entries.filter { it.value.totalProposals >= MIN_PHASE_SAMPLES }
     withProposals.maxByOrNull { it.value.accepted.toFloat() / it.value.totalProposals }?.let { (phase, tally) ->
         val rate = (tally.accepted.toFloat() / tally.totalProposals * 100).roundToInt()
-        sentences += "В фазу «${phase.label}» процент принятых предложений максимален ($rate%)."
+        insights += CorrelationInsight(phase, "В фазу «${phase.label}» процент принятых предложений максимален ($rate%).")
     }
     withProposals.minByOrNull { it.value.accepted.toFloat() / it.value.totalProposals }?.let { (phase, tally) ->
         val declineRate = ((1f - tally.accepted.toFloat() / tally.totalProposals) * 100).roundToInt()
         if (declineRate > 0) {
-            sentences += "В фазу «${phase.label}» отказов больше всего ($declineRate%)."
+            insights += CorrelationInsight(phase, "В фазу «${phase.label}» отказов больше всего ($declineRate%).")
         }
     }
 
@@ -104,11 +110,14 @@ fun computeCorrelationInsights(
         .filter { it.value.fatigueDeclines >= FATIGUE_DECLINE_MIN_IN_PHASE }
         .maxByOrNull { it.value.fatigueDeclines }
         ?.let { (phase, _) ->
-            sentences += "Отказы по причине усталости чаще всего приходятся на фазу «${phase.label}» -- " +
-                "возможно, стоит планировать больше отдыха в этот период."
+            insights += CorrelationInsight(
+                phase,
+                "Отказы по причине усталости чаще всего приходятся на фазу «${phase.label}» -- " +
+                    "возможно, стоит планировать больше отдыха в этот период."
+            )
         }
 
-    return CorrelationInsights(sentences.distinct())
+    return CorrelationInsights(insights.distinct())
 }
 
 /** A single, non-alarming nudge shown on the calendar -- never more than one at a time. */

@@ -3,9 +3,11 @@ package com.koshg.calendar.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -27,6 +29,7 @@ import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.computeCorrelationInsights
 import com.koshg.calendar.util.monthShortLabel
 import com.koshg.calendar.util.shortDateLabel
@@ -42,7 +45,8 @@ fun HistoryScreen(
     sexEntries: List<SexEntry>,
     proposalEntries: List<ProposalEntry>,
     masturbationEntries: List<MasturbationEntry>,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onOpenYearOverview: () -> Unit
 ) {
     val appColors = appColors()
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
@@ -68,6 +72,9 @@ fun HistoryScreen(
                         .weight(1f)
                         .padding(start = 4.dp)
                 )
+                IconButton(onClick = onOpenYearOverview) {
+                    Icon(Icons.Default.GridView, contentDescription = "Год целиком", tint = appColors.textPrimary)
+                }
             }
 
             LazyColumn(
@@ -281,16 +288,29 @@ private fun CorrelationInsightsSection(
         computeCorrelationInsights(periods, sexEntries, proposalEntries)
     }
     SectionCard(title = "Корреляции") {
-        if (insights.sentences.isEmpty()) {
+        if (insights.insights.isEmpty()) {
             Text(
                 "Пока недостаточно записей, чтобы увидеть закономерности по фазам цикла.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                insights.sentences.forEach { sentence ->
-                    Text(sentence, style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                insights.insights.forEach { insight ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(appColors.phaseColor(insight.phase))
+                        )
+                        Text(
+                            insight.sentence,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = appColors.textPrimary
+                        )
+                    }
                 }
             }
         }

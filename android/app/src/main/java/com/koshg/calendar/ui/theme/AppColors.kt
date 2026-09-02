@@ -222,19 +222,6 @@ fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
 /** The phase color to actually paint the calendar with -- the full-saturation phase hue. */
 fun AppColors.phaseColor(phase: CyclePhase): Color = colorFor(phase)
 
-/** The day-cell fill color for [phase] at [progress] through it (0 = the phase's first day, 1 =
- *  its last), blended toward the *next* phase's color so adjacent days never jump abruptly at a
- *  phase boundary -- a phase's last day already reads almost as the next phase's color, and that
- *  next phase's first day (progress 0) continues from exactly there, same trick as
- *  [adaptiveAccent]. LH_PEAK is a single day and stays pure rather than blending, since it's
- *  meant to stand out as a spike, not a transition. */
-fun AppColors.blendedPhaseColor(phase: CyclePhase, progress: Float): Color {
-    if (phase == CyclePhase.LH_PEAK) return phaseColor(phase)
-    val order = CyclePhase.entries
-    val next = order[(phase.ordinal + 1) % order.size]
-    return lerp(phaseColor(phase), phaseColor(next), progress.coerceIn(0f, 1f))
-}
-
 private fun AppColors.colorForNext(phase: CyclePhase): Color {
     val order = CyclePhase.entries
     return colorFor(order[(phase.ordinal + 1) % order.size])

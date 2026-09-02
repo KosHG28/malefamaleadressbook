@@ -1,9 +1,17 @@
 package com.koshg.calendar.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -33,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -53,7 +63,6 @@ import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.LocalPalette
 import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
-import com.koshg.calendar.ui.theme.blendedPhaseColor
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
@@ -81,7 +90,7 @@ sealed interface ActiveSheet {
 
 internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED }
 
-private data class GridDayInfo(val date: LocalDate, val phase: CyclePhase?, val phaseProgress: Float, val isFuture: Boolean)
+private data class GridDayInfo(val date: LocalDate, val phase: CyclePhase?, val isFuture: Boolean)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +124,7 @@ private fun CalendarScreenContent(
 
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showYearOverview by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
 
     val periodByDate = remember(cycleState.periods) { cycleState.periods.associateBy { it.startDate } }
@@ -145,13 +155,18 @@ private fun CalendarScreenContent(
         Scaffold(
             containerColor = Color.Transparent,
             floatingActionButton = {
+                val fabInteractionSource = remember { MutableInteractionSource() }
+                val fabPressed by fabInteractionSource.collectIsPressedAsState()
+                val fabScale by animateFloatAsState(if (fabPressed) 0.9f else 1f, label = "fabScale")
                 FloatingActionButton(
                     onClick = {
                         haptics.perform(HapticEvent.Select)
                         activeSheet = ActiveSheet.New(uiState.selectedDate)
                     },
                     containerColor = dynamicAccent,
-                    contentColor = Color.White
+                    contentColor = Color.White,
+                    interactionSource = fabInteractionSource,
+                    modifier = Modifier.scale(fabScale)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Добавить")
                 }
@@ -261,11 +276,24 @@ private fun CalendarScreenContent(
                         )
                     }
                 }
-                if (proactiveSuggestion != null) {
-                    SuggestionBanner(
-                        suggestion = proactiveSuggestion,
-                        onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
-                    )
+                // Keeps rendering the last non-null suggestion while AnimatedVisibility shrinks it
+                // away, since proactiveSuggestion itself already flips to null the moment
+                // visible does -- without this the banner would vanish instantly instead of
+                // collapsing.
+                val displayedSuggestion = remember { mutableStateOf<ProactiveSuggestion?>(null) }
+                if (proactiveSuggestion != null) displayedSuggestion.value = proactiveSuggestion
+
+                AnimatedVisibility(
+                    visible = proactiveSuggestion != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    displayedSuggestion.value?.let { suggestion ->
+                        SuggestionBanner(
+                            suggestion = suggestion,
+                            onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
+                        )
+                    }
                 }
 
                 DayAgendaPanel(
@@ -292,7 +320,25 @@ private fun CalendarScreenContent(
             sexEntries = intimacyState.sexEntries,
             proposalEntries = intimacyState.proposalEntries,
             masturbationEntries = intimacyState.masturbationEntries,
-            onClose = { showHistory = false }
+            onClose = { showHistory = false },
+            onOpenYearOverview = {
+                showHistory = false
+                showYearOverview = true
+            }
+        )
+    }
+
+    if (showYearOverview) {
+        YearOverviewScreen(
+            initialYear = uiState.viewMonth.year,
+            periods = cycleState.periods,
+            marginDays = cycleState.stats.appliedMarginDays,
+            lutealPhaseDays = cycleState.lutealPhaseDays,
+            onClose = { showYearOverview = false },
+            onMonthClick = { month ->
+                viewModel.setViewMonth(month)
+                showYearOverview = false
+            }
         )
     }
 
@@ -608,9 +654,11 @@ private fun SuggestionBanner(suggestion: ProactiveSuggestion, onDismiss: () -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .padding(horizontal = 20.dp)
+            .padding(top = 8.dp, bottom = 4.dp)
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
-            .background(appColors.warmSurface.copy(alpha = 0.65f))
+            .background(appColors.warmSurface.copy(alpha = 0.92f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -674,11 +722,8 @@ private fun MonthGrid(
     val gridDays = remember(viewMonth, periods, marginDays, lutealPhaseDays) {
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
-            // A single walk gives both the phase and how far the date sits through it, which
-            // cyclePhaseFor alone wouldn't -- the progress feeds the cross-phase color blend
-            // below, so days never jump abruptly in color at a phase boundary.
-            val progress = cyclePhaseProgressFor(date, periods, marginDays, lutealPhaseDays)
-            GridDayInfo(date, progress?.first, progress?.second ?: 0f, date.isAfter(today))
+            val phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays)
+            GridDayInfo(date, phase, date.isAfter(today))
         }
     }
 
@@ -728,7 +773,6 @@ private fun MonthGrid(
                         isSelected = info.date == selectedDate,
                         phase = info.phase,
                         isFuture = info.isFuture,
-                        phaseProgress = info.phaseProgress,
                         roundStart = !mergesWithPrev,
                         roundEnd = !mergesWithNext,
                         phaseFillStyle = phaseFillStyle,
@@ -784,7 +828,6 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     phase: CyclePhase?,
-    phaseProgress: Float,
     isFuture: Boolean,
     roundStart: Boolean,
     roundEnd: Boolean,
@@ -811,9 +854,8 @@ private fun DayCell(
     )
     val pillShape = RoundedCornerShape(percent = 50)
 
-    // Blends smoothly toward the next phase's color as the day progresses through its own phase,
-    // so there's no hard jump at a phase boundary.
-    val phaseColor = phase?.let { appColors.blendedPhaseColor(it, phaseProgress) }
+    // A flat, single color per phase -- only changes at the phase boundary, never within a run.
+    val phaseColor = phase?.let { appColors.phaseColor(it) }
     val isDashed = phaseFillStyle == PhaseFillStyle.DASHED
     // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
     // since what's coming up is the whole point of a forecast calendar, while already-elapsed
@@ -836,12 +878,22 @@ private fun DayCell(
             .background(appColors.warmSurface.copy(alpha = monthAlpha))
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(if (isPressed) 0.9f else 1f, label = "dayCellScale")
+
     Box(
         modifier = modifier
             .padding(vertical = 2.dp)
             .height(34.dp)
+            .scale(pressScale)
             .then(cellModifier)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (isSelected) {

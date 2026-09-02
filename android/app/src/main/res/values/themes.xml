@@ -8,7 +8,7 @@
     <!-- Shown while the process is cold-starting, before the first Compose frame draws. -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/calendar_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground_wine</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/calendar_primary</item>
         <item name="postSplashScreenTheme">@style/Theme.CalendarApp</item>
     </style>

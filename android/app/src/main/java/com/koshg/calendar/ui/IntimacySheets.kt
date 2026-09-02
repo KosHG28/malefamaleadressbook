@@ -149,6 +149,66 @@ internal fun sheetFieldColors(): TextFieldColors {
 
 internal val sheetFieldShape = RoundedCornerShape(14.dp)
 
+/** Quick-pick decline reasons -- covers the common cases while still allowing free text via
+ *  "Другое", so [com.koshg.calendar.util.computeCorrelationInsights]'s fatigue-keyword match
+ *  stays reliable instead of depending on however the user happened to phrase it. */
+private val DECLINE_REASON_PRESETS = listOf("Усталость", "Настроение", "Самочувствие")
+
+@Composable
+private fun DeclineReasonSelector(reason: String, onReasonChange: (String) -> Unit) {
+    val haptics = LocalHaptics.current
+    val appColors = appColors()
+    var showCustomField by remember { mutableStateOf(reason.isNotBlank() && reason !in DECLINE_REASON_PRESETS) }
+
+    Column {
+        Text("Причина отказа", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            (DECLINE_REASON_PRESETS + "Другое").forEach { option ->
+                val isSelected = if (option == "Другое") showCustomField else (!showCustomField && reason == option)
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelected) appColors.accent else appColors.accent.copy(alpha = 0.12f))
+                        .clickable {
+                            haptics.perform(HapticEvent.Tap)
+                            if (option == "Другое") {
+                                showCustomField = true
+                                onReasonChange("")
+                            } else {
+                                showCustomField = false
+                                onReasonChange(option)
+                            }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        option,
+                        color = if (isSelected) Color.White else appColors.accent,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+        }
+        if (showCustomField) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = reason,
+                onValueChange = onReasonChange,
+                label = { Text("Своя причина") },
+                shape = sheetFieldShape,
+                colors = sheetFieldColors(),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
 /**
  * Applies a system background-blur to whatever sits behind this dialog's own window, layered
  * under the platform's default scrim dim -- the "frosted glass" look from Android 12+'s
@@ -245,14 +305,7 @@ fun UnifiedAddSheet(
                             Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
                         }
                         if (!accepted) {
-                            OutlinedTextField(
-                                value = declineReason,
-                                onValueChange = { declineReason = it },
-                                label = { Text("Причина отказа") },
-                                shape = sheetFieldShape,
-                                colors = sheetFieldColors(),
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            DeclineReasonSelector(declineReason) { declineReason = it }
                         }
                     }
 
@@ -588,14 +641,7 @@ fun ProposalSheet(
                 Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
             }
             if (!accepted) {
-                OutlinedTextField(
-                    value = declineReason,
-                    onValueChange = { declineReason = it },
-                    label = { Text("Причина отказа") },
-                    shape = sheetFieldShape,
-                    colors = sheetFieldColors(),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                DeclineReasonSelector(declineReason) { declineReason = it }
             }
             OutlinedTextField(
                 value = notes,
