@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -686,21 +685,30 @@ private fun MonthGrid(
     }
 }
 
-/** A dashed outline traced along [shape]'s own outline, no fill -- the "Пунктир" phase display
- *  style, in place of the "Заливка" style's solid [Modifier.background]. */
+/** A dashed stadium (fully-rounded-pill) outline, no fill -- the "Пунктир" phase display style,
+ *  in place of the "Заливка" style's solid [Modifier.background]. Dashed-style cells are never
+ *  merged into a run (see MonthGrid), so the cell is always a full stadium shape -- a plain
+ *  [androidx.compose.ui.graphics.drawscope.DrawScope.drawRoundRect] with a half-height corner
+ *  radius covers it without needing to trace an arbitrary [androidx.compose.ui.graphics.Shape]'s
+ *  outline. */
 private fun Modifier.dashedOutline(
     color: Color,
-    shape: Shape,
     strokeWidth: Dp = 1.6.dp,
     dash: Dp = 3.dp,
     gap: Dp = 2.5.dp
 ): Modifier = this.drawBehind {
-    val outline = shape.createOutline(size, layoutDirection, this)
-    drawOutline(
-        outline = outline,
+    val strokeWidthPx = strokeWidth.toPx()
+    // Inset by half the stroke width so the dashed line sits fully inside the cell's own
+    // bounds, matching how Modifier.border draws (centered on the edge would otherwise clip).
+    val inset = strokeWidthPx / 2f
+    val rectSize = androidx.compose.ui.geometry.Size(size.width - strokeWidthPx, size.height - strokeWidthPx)
+    drawRoundRect(
         color = color,
+        topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+        size = rectSize,
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(rectSize.minDimension / 2f),
         style = Stroke(
-            width = strokeWidth.toPx(),
+            width = strokeWidthPx,
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash.toPx(), gap.toPx()), 0f)
         )
     )
@@ -769,7 +777,7 @@ private fun DayCell(
         phaseColor != null && !isDashed -> Modifier
             .clip(runShape)
             .background(phaseColor.copy(alpha = contentAlpha))
-        phaseColor != null -> Modifier.dashedOutline(phaseColor.copy(alpha = contentAlpha), runShape)
+        phaseColor != null -> Modifier.dashedOutline(phaseColor.copy(alpha = contentAlpha))
         else -> Modifier
             .clip(pillShape)
             .background(appColors.warmSurface.copy(alpha = monthAlpha))
