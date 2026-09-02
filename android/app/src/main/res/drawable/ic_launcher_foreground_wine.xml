@@ -5,7 +5,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!-- Interlude wordmark glyph: three nested wave bands, a small hook at the left tail and a
-         curl at the right tip -- deep-to-bright along the same accent used in-app for this
+         curl at the right tip; deep-to-bright along the same accent used in-app for this
          palette, echoing the reference mark. -->
     <path
         android:pathData="M14,74 C10,80 14,86 21,80 C31,62 45,58 55,68 C65,78 77,82 87,62"

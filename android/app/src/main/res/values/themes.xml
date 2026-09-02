@@ -6,7 +6,7 @@
     </style>
 
     <!-- Shown while the process is cold-starting, before the first Compose frame draws. No
-         windowSplashScreenIconBackgroundColor -- the new wave glyph is itself a colored gradient
+         windowSplashScreenIconBackgroundColor: the new wave glyph is itself a colored gradient
          on a transparent backing (unlike the old solid-white calendar glyph, which needed an
          opaque circle behind it for contrast), so it sits directly on the pale window background,
          same as the app icon itself. -->
