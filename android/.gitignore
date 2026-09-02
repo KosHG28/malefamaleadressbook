@@ -10,3 +10,8 @@
 .cxx
 *.apk
 *.aab
+
+# Play Store release signing -- never committed, see RELEASE_SIGNING.md.
+/app/keystore.properties
+*.jks
+*.keystore

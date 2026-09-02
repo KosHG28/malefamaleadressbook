@@ -1,8 +1,24 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+// Play Store release signing: reads app/keystore.properties (git-ignored, never committed) when
+// present, so a real upload key can be dropped in locally or supplied by CI secrets without ever
+// touching source control -- see android/RELEASE_SIGNING.md for how to generate one. Falls back
+// to the debug key otherwise, which keeps the existing GitHub Releases APK flow (android-ci.yml,
+// android-release.yml) working exactly as before for anyone who hasn't set one up.
+val keystorePropertiesFile = file("keystore.properties")
+val hasReleaseSigning = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasReleaseSigning) {
+        FileInputStream(keystorePropertiesFile).use { load(it) }
+    }
 }
 
 android {
@@ -18,13 +34,29 @@ android {
         versionName = "3.0.20"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("playStore") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
-            // Signed with the debug key so CI can produce an installable APK without a
-            // dedicated release keystore/secrets. Fine for direct-install distribution
-            // via GitHub Releases; swap in a real signing config before a Play Store upload.
-            signingConfig = signingConfigs.getByName("debug")
+            // Play requires a shrunk, obfuscated build; the default AndroidX/Room/Compose
+            // consumer ProGuard rules cover this app's needs (no reflection-based JSON, no
+            // custom native/JNI code), so no extra keep rules were needed in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("playStore")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
