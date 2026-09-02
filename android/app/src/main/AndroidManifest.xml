@@ -10,7 +10,7 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.CalendarApp"
         android:supportsRtl="true">
-        <!-- Not itself a launcher entry point -- exposed only through the palette-matched
+        <!-- Not itself a launcher entry point: exposed only through the palette-matched
              activity-aliases below, exactly one of which is enabled at a time (see
              CyclePreferences.applyLauncherIcon), so the home-screen icon follows the chosen
              color scheme from Settings. -->
