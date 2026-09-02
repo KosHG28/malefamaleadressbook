@@ -33,8 +33,6 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.History
@@ -92,10 +90,9 @@ import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.Haptics
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.ui.theme.LocalAdaptivePhase
 import com.koshg.calendar.ui.theme.LocalPalette
 import com.koshg.calendar.ui.theme.LocalThemeMode
-import com.koshg.calendar.ui.theme.adaptiveAccent
-import com.koshg.calendar.ui.theme.adaptiveGradient
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.CyclePhase
@@ -153,10 +150,24 @@ fun CalendarScreen(
     // Everything below reads its colors via appColors(), which resolves the current palette/theme
     // mode from these CompositionLocals -- providing them once here, rather than threading
     // parameters through every screen/sheet, lets picking a new scheme or light/dark override in
-    // Settings repaint the whole app.
+    // Settings repaint the whole app. "Adaptive theme" rides along the same way: the phase is
+    // resolved once here and appColors() blends accent and background from it, so every screen
+    // shifts with the cycle rather than only the calendar.
+    val adaptivePhase = if (cycleState.adaptiveTheme) {
+        cyclePhaseProgressFor(
+            LocalDate.now(),
+            cycleState.periods,
+            cycleState.stats.appliedMarginDays,
+            cycleState.lutealPhaseDays
+        )
+    } else {
+        null
+    }
+
     CompositionLocalProvider(
         LocalPalette provides cycleState.palette,
-        LocalThemeMode provides cycleState.themeMode
+        LocalThemeMode provides cycleState.themeMode,
+        LocalAdaptivePhase provides adaptivePhase
     ) {
         CalendarScreenContent(viewModel, cycleViewModel, intimacyViewModel, cycleState)
     }
@@ -288,22 +299,10 @@ private fun CalendarScreenContent(
         else -> "Добавить"
     }
 
-    // "Adaptive theme" blends the accent across cycle phases instead of a fixed color -- the same
-    // phase progress drives the FAB/selected-day ring accent below and, more lightly, the screen's
-    // own background gradient, rather than touching every accent-colored element in the app
-    // (dialogs/sheets keep the static accent).
-    val phaseProgress = if (cycleState.adaptiveTheme) {
-        cyclePhaseProgressFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays, cycleState.lutealPhaseDays)
-    } else {
-        null
-    }
-    val dynamicAccent = if (cycleState.adaptiveTheme) appColors.adaptiveAccent(phaseProgress) else appColors.accent
-    val (gradientTop, gradientBottom) = if (cycleState.adaptiveTheme) {
-        appColors.adaptiveGradient(phaseProgress)
-    } else {
-        appColors.gradientTop to appColors.gradientBottom
-    }
-    val gradient = Brush.verticalGradient(listOf(gradientTop, gradientBottom))
+    // Already carries the cycle-phase blend when "adaptive theme" is on -- appColors() applies it
+    // for the whole app (see LocalAdaptivePhase), so there's nothing phase-specific to do here.
+    val dynamicAccent = appColors.accent
+    val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Scaffold(
@@ -704,10 +703,10 @@ private fun CalendarMonthSection(
 
         LaunchedEffect(pagerState.currentPage) {
             val swipedToMonth = baseMonth.plusMonths((pagerState.currentPage - pagerCenterPage).toLong())
-            // This only differs from the current view month on a genuine user swipe --
-            // a chevron-driven change already lands here with swipedToMonth already
-            // matching (the other LaunchedEffect below just animates the pager to catch
-            // up), so a haptic here never doubles up with the chevron's own tap.
+            // This only differs from the current view month on a genuine user swipe -- a month
+            // set from elsewhere (the header's "today", the year overview) already lands here
+            // with swipedToMonth matching, since the other LaunchedEffect below just animates
+            // the pager to catch up, so a haptic here never doubles up with that action's own.
             if (swipedToMonth != uiState.viewMonth) {
                 haptics.perform(HapticEvent.Tap)
                 viewModel.setViewMonth(swipedToMonth)
@@ -725,8 +724,6 @@ private fun CalendarMonthSection(
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 MonthNav(
                     monthLabel = monthYearLabel(month.atDay(1)),
-                    onPrev = { haptics.perform(HapticEvent.Tap); viewModel.goToPreviousMonth() },
-                    onNext = { haptics.perform(HapticEvent.Tap); viewModel.goToNextMonth() },
                     rangeSelectionMode = rangeSelectionMode,
                     onToggleRangeSelectionMode = {
                         haptics.perform(HapticEvent.Toggle)
@@ -1005,28 +1002,17 @@ private fun CalendarHeader(
     }
 }
 
+/** Just the month label and the range-selection toggle -- no prev/next chevrons: the grid is a
+ *  [HorizontalPager], so swiping already moves between months, and the header's "today" button
+ *  and the year overview cover longer jumps. */
 @Composable
 private fun MonthNav(
     monthLabel: String,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
     rangeSelectionMode: Boolean,
     onToggleRangeSelectionMode: () -> Unit
 ) {
     val appColors = appColors()
-    // A round tonal backing behind each chevron, echoing the FAB/day-pill roundness that runs
-    // through the rest of the app -- a bare flat chevron read as out of place here. Tinted with
-    // accent, not warmSurface: warmSurface is one of the palette's own near-background tones, so
-    // at any reasonable alpha it barely differs from the gradient behind it and reads as
-    // invisible; accent is saturated enough to actually stand out at a light alpha.
-    val navButtonModifier = Modifier
-        .size(32.dp)
-        .background(appColors.accent.copy(alpha = 0.18f), CircleShape)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrev, modifier = navButtonModifier) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц", tint = appColors.textPrimary)
-        }
-        Spacer(Modifier.width(4.dp))
         Text(
             text = monthLabel.uppercase(),
             style = MaterialTheme.typography.titleMedium,
@@ -1034,10 +1020,6 @@ private fun MonthNav(
             letterSpacing = 0.5.sp,
             color = appColors.textPrimary
         )
-        Spacer(Modifier.width(4.dp))
-        IconButton(onClick = onNext, modifier = navButtonModifier) {
-            Icon(Icons.Default.ChevronRight, contentDescription = "Следующий месяц", tint = appColors.textPrimary)
-        }
         Spacer(Modifier.weight(1f))
         // Off by default so it never competes with the plain day tap/long-press this whole grid
         // otherwise relies on -- while on, dragging a finger across days in MonthGrid selects a

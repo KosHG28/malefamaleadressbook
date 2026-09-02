@@ -46,14 +46,6 @@ class CalendarViewModel(private val repository: EventRepository) : ViewModel() {
         initialValue = CalendarUiState()
     )
 
-    fun goToPreviousMonth() {
-        viewMonth.value = viewMonth.value.minusMonths(1)
-    }
-
-    fun goToNextMonth() {
-        viewMonth.value = viewMonth.value.plusMonths(1)
-    }
-
     /** Used by the swipeable month pager to report the month the user has landed on. */
     fun setViewMonth(month: YearMonth) {
         viewMonth.value = month

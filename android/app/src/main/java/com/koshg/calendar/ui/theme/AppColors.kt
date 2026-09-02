@@ -63,6 +63,12 @@ enum class ThemeMode(val label: String) {
 
 val LocalThemeMode = compositionLocalOf { ThemeMode.SYSTEM }
 
+/** Today's cycle phase and how far through it today sits, when "adaptive theme" is switched on --
+ *  null when it's off, or when there's no cycle data to derive a phase from yet. Provided once at
+ *  the top of the app (see CalendarScreen) so [appColors] can shift *every* screen's accent and
+ *  background with the cycle, rather than the calendar screen tinting only itself. */
+val LocalAdaptivePhase = compositionLocalOf<Pair<CyclePhase, Float>?> { null }
+
 /** Resolves this mode against the current system setting -- shared by [appColors] and the
  *  Material3 baseline theme (see CalendarAppTheme) so both agree on light vs. dark. */
 fun ThemeMode.resolveDark(systemDark: Boolean): Boolean = when (this) {
@@ -218,12 +224,24 @@ fun appColors(): AppColors {
     val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
     val base = if (dark) DarkAppColors else LightAppColors
     val skin = (if (dark) DarkPaletteSkins else LightPaletteSkins).getValue(palette)
-    return base.copy(
+    val skinned = base.copy(
         accent = skin.accent,
         gradientTop = skin.gradientTop,
         gradientBottom = skin.gradientBottom,
         warmBackground = skin.warmBackground,
         warmSurface = skin.warmSurface
+    )
+
+    // "Adaptive theme" is applied here, at the one place every screen resolves its colors through,
+    // rather than at a single call site -- so Settings, History and the year overview shift with
+    // the cycle too, and flipping the switch repaints the very screen it's flipped on. Phase and
+    // marker colors are deliberately left untouched: those carry meaning, not decoration.
+    val adaptivePhase = LocalAdaptivePhase.current ?: return skinned
+    val adaptiveAccent = skinned.adaptiveAccent(adaptivePhase)
+    return skinned.copy(
+        accent = adaptiveAccent,
+        gradientTop = lerp(skinned.gradientTop, adaptiveAccent, ADAPTIVE_GRADIENT_BLEND),
+        gradientBottom = lerp(skinned.gradientBottom, adaptiveAccent, ADAPTIVE_GRADIENT_BLEND)
     )
 }
 
@@ -243,26 +261,15 @@ private fun AppColors.colorForNext(phase: CyclePhase): Color {
 }
 
 /** The accent color for "adaptive theme": blends smoothly from the current cycle phase's color
- *  toward the next phase's color as the day progresses through the current phase, so the
- *  FAB/selection accent shifts gradually day to day instead of jumping at each phase boundary.
- *  Falls back to the static [AppColors.accent] with no phase data (e.g. no periods logged yet). */
-fun AppColors.adaptiveAccent(todayPhaseProgress: Pair<CyclePhase, Float>?): Color {
-    if (todayPhaseProgress == null) return accent
+ *  toward the next phase's color as the day progresses through the current phase, so the accent
+ *  shifts gradually day to day instead of jumping at each phase boundary. */
+private fun AppColors.adaptiveAccent(todayPhaseProgress: Pair<CyclePhase, Float>): Color {
     val (phase, fraction) = todayPhaseProgress
     return lerp(colorFor(phase), colorForNext(phase), fraction.coerceIn(0f, 1f))
 }
 
-/** Same phase-driven blend as [adaptiveAccent], applied to the background gradient so "adaptive
- *  theme" tints the whole screen rather than just the FAB/selection ring. Not toward full
- *  saturation -- the base gradient stays either near-white (light theme) or near-black (dark
- *  theme) and the phase colors themselves are mid-luminance, so even at this blend the text
- *  contrast already tuned against the static gradient stays safe. Falls back to the static
- *  gradient under the same conditions as [adaptiveAccent]. */
-fun AppColors.adaptiveGradient(todayPhaseProgress: Pair<CyclePhase, Float>?): Pair<Color, Color> {
-    if (todayPhaseProgress == null) return gradientTop to gradientBottom
-    val accent = adaptiveAccent(todayPhaseProgress)
-    return lerp(gradientTop, accent, ADAPTIVE_GRADIENT_BLEND) to
-        lerp(gradientBottom, accent, ADAPTIVE_GRADIENT_BLEND)
-}
-
+/** How far the background gradient blends toward the adaptive accent. Not all the way to full
+ *  saturation: the base gradient sits at an extreme (near-white in light theme, near-black in
+ *  dark) and the phase colors are only mid-luminance, so at this much the shift is unmistakable
+ *  while the text contrast tuned against the static gradient stays safe. */
 private const val ADAPTIVE_GRADIENT_BLEND = 0.35f
