@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
@@ -59,6 +58,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -275,9 +275,16 @@ private fun CalendarScreenContent(
                     .fillMaxSize()
             ) {
                 val widthClass = windowWidthClassOf(maxWidth.value.toInt())
+                val selectedDatePhase = cyclePhaseFor(
+                    uiState.selectedDate,
+                    cycleState.periods,
+                    cycleState.stats.appliedMarginDays,
+                    cycleState.lutealPhaseDays
+                )
                 val agendaPanel: @Composable (Modifier) -> Unit = { agendaModifier ->
                     DayAgendaPanel(
                         selectedDate = uiState.selectedDate,
+                        phase = selectedDatePhase,
                         events = uiState.selectedDateEvents,
                         periodEntry = periodByDate[uiState.selectedDate.toString()],
                         sexEntry = sexByDate[uiState.selectedDate.toString()],
@@ -1057,14 +1064,38 @@ private fun DayCell(
         else -> appColors.textPrimary
     }
 
+    // The predicted ovulation day gets a lightened fill and a soft glow behind the cell instead
+    // of a badge icon -- a day that just looks subtly brighter than its ovulatory-phase
+    // neighbors, rather than one more small icon to parse.
+    val fillColor = if (isOvulationDay && phaseColor != null) {
+        lerp(phaseColor, Color.White, 0.3f)
+    } else {
+        phaseColor
+    }
+
     val cellModifier = when {
-        phaseColor != null && !isDashed -> Modifier
+        fillColor != null && !isDashed -> Modifier
             .clip(runShape)
-            .background(phaseColor.copy(alpha = contentAlpha))
-        phaseColor != null -> Modifier.dashedOutline(phaseColor.copy(alpha = contentAlpha))
+            .background(fillColor.copy(alpha = contentAlpha))
+        fillColor != null -> Modifier.dashedOutline(fillColor.copy(alpha = contentAlpha))
         else -> Modifier
             .clip(pillShape)
             .background(appColors.warmSurface.copy(alpha = monthAlpha))
+    }
+
+    val glowModifier = if (isOvulationDay && phaseColor != null) {
+        Modifier.drawBehind {
+            val glowRadius = size.height * 1.5f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(appColors.ovulatory.copy(alpha = 0.55f), appColors.ovulatory.copy(alpha = 0f)),
+                    radius = glowRadius
+                ),
+                radius = glowRadius
+            )
+        }
+    } else {
+        Modifier
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -1076,6 +1107,7 @@ private fun DayCell(
             .padding(vertical = 2.dp)
             .height(34.dp)
             .scale(pressScale)
+            .then(glowModifier)
             .then(cellModifier)
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -1166,26 +1198,6 @@ private fun DayCell(
                             contentDescription = "Оргазм",
                             tint = appColors.orgasmStar,
                             modifier = Modifier.size(10.dp)
-                        )
-                    }
-                }
-                // Flags the one day within the (multi-day) OVULATORY block that's the actual
-                // predicted ovulation date -- opposite corner from the orgasm star so the two
-                // never collide, on the same white backing-circle treatment for legibility.
-                if (isOvulationDay) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(13.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.95f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.GpsFixed,
-                            contentDescription = "Предполагаемый день овуляции",
-                            tint = appColors.ovulatory,
-                            modifier = Modifier.size(9.dp)
                         )
                     }
                 }

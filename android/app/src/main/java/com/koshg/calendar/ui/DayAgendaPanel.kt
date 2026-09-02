@@ -1,5 +1,10 @@
 package com.koshg.calendar.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,12 +15,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,13 +39,17 @@ import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
+import com.koshg.calendar.haptics.HapticEvent
+import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.dayAgendaLabel
 import java.time.LocalDate
 
 @Composable
 fun DayAgendaPanel(
     selectedDate: LocalDate,
+    phase: CyclePhase?,
     events: List<CalendarEvent>,
     periodEntry: PeriodEntry?,
     sexEntry: SexEntry?,
@@ -56,12 +71,52 @@ fun DayAgendaPanel(
             .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
         val appColors = appColors()
-        Text(
-            text = dayAgendaLabel(selectedDate).replaceFirstChar { it.uppercase() },
-            style = MaterialTheme.typography.titleSmall,
-            color = appColors.textPrimary,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        val haptics = LocalHaptics.current
+        // Off by default -- a tap-to-reveal tip for what tends to suit this phase, rather than
+        // a permanent banner that would repeat itself every time a day gets selected.
+        var showPhaseTip by remember(selectedDate) { mutableStateOf(false) }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = dayAgendaLabel(selectedDate).replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleSmall,
+                color = appColors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            if (phase != null) {
+                IconButton(
+                    onClick = {
+                        haptics.perform(HapticEvent.Tap)
+                        showPhaseTip = !showPhaseTip
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Подсказка по фазе цикла",
+                        tint = appColors.textSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showPhaseTip && phase != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            if (phase != null) {
+                Text(
+                    text = phaseTipForMen(phase),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
 
         if (!hasAnything) {
             Text(
@@ -96,6 +151,24 @@ fun DayAgendaPanel(
             }
         }
     }
+}
+
+/** A short, general-purpose suggestion for a partner reading the selected day's phase --
+ *  deliberately generic (not tailored to this couple's own logged data), since it's meant as a
+ *  quick nudge, not a diagnosis. */
+private fun phaseTipForMen(phase: CyclePhase): String = when (phase) {
+    CyclePhase.MENSTRUAL ->
+        "Возможны спазмы и упадок сил. Уместнее забота без напора — грелка, чай, плед, фильм " +
+            "рядом — и не давить на близость, если сама не проявит инициативу."
+    CyclePhase.FOLLICULAR ->
+        "Энергия и настроение обычно растут. Хорошее время для активных свиданий, новых идей " +
+            "и совместных планов."
+    CyclePhase.OVULATORY ->
+        "Часто пик энергии и либидо. Подходящий момент для романтики и близости — но ориентируйтесь " +
+            "на её настроение в моменте, а не только на фазу."
+    CyclePhase.LUTEAL ->
+        "Ближе к концу фазы возможны перепады настроения и ПМС. Больше терпения, меньше критики — " +
+            "спокойный тихий вечер обычно заходит лучше активных планов."
 }
 
 @Composable
