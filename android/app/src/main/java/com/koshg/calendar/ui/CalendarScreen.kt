@@ -1015,10 +1015,13 @@ private fun MonthNav(
 ) {
     val appColors = appColors()
     // A round tonal backing behind each chevron, echoing the FAB/day-pill roundness that runs
-    // through the rest of the app -- a bare flat chevron read as out of place here.
+    // through the rest of the app -- a bare flat chevron read as out of place here. Tinted with
+    // accent, not warmSurface: warmSurface is one of the palette's own near-background tones, so
+    // at any reasonable alpha it barely differs from the gradient behind it and reads as
+    // invisible; accent is saturated enough to actually stand out at a light alpha.
     val navButtonModifier = Modifier
         .size(32.dp)
-        .background(appColors.warmSurface.copy(alpha = 0.6f), CircleShape)
+        .background(appColors.accent.copy(alpha = 0.18f), CircleShape)
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev, modifier = navButtonModifier) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц", tint = appColors.textPrimary)
