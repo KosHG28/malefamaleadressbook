@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -47,11 +48,11 @@ import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.ui.theme.LocalPalette
 import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.blendedPhaseColor
 import com.koshg.calendar.ui.theme.phaseColor
-import com.koshg.calendar.ui.theme.runGradientShade
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.WEEKDAY_SHORT_NAMES
@@ -85,8 +86,25 @@ fun CalendarScreen(
     cycleViewModel: CycleViewModel,
     intimacyViewModel: IntimacyViewModel
 ) {
-    val uiState by viewModel.uiState.collectAsState()
     val cycleState by cycleViewModel.uiState.collectAsState()
+
+    // Everything below reads its colors via appColors(), which resolves the current palette from
+    // this CompositionLocal -- providing it once here, rather than threading a palette parameter
+    // through every screen/sheet, lets picking a new scheme in Settings repaint the whole app.
+    CompositionLocalProvider(LocalPalette provides cycleState.palette) {
+        CalendarScreenContent(viewModel, cycleViewModel, intimacyViewModel, cycleState)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalendarScreenContent(
+    viewModel: CalendarViewModel,
+    cycleViewModel: CycleViewModel,
+    intimacyViewModel: IntimacyViewModel,
+    cycleState: CycleUiState
+) {
+    val uiState by viewModel.uiState.collectAsState()
     val intimacyState by intimacyViewModel.uiState.collectAsState()
     val haptics = LocalHaptics.current
     val appColors = appColors()
@@ -156,8 +174,7 @@ fun CalendarScreen(
                     onOpenSettings = {
                         haptics.perform(HapticEvent.Tap)
                         showSettings = true
-                    },
-                    vividColors = cycleState.vividColors
+                    }
                 )
 
                 val baseMonth = remember { YearMonth.now() }
@@ -202,8 +219,6 @@ fun CalendarScreen(
                             periods = cycleState.periods,
                             marginDays = cycleState.stats.appliedMarginDays,
                             lutealPhaseDays = cycleState.lutealPhaseDays,
-                            gradientDayFill = cycleState.gradientDayFill,
-                            vividColors = cycleState.vividColors,
                             phaseFillStyle = cycleState.phaseFillStyle,
                             accentColor = dynamicAccent,
                             sexByDate = sexByDate,
@@ -223,7 +238,7 @@ fun CalendarScreen(
                     }
                 }
 
-                PhaseLegend(vividColors = cycleState.vividColors)
+                PhaseLegend()
 
                 DayAgendaPanel(
                     selectedDate = uiState.selectedDate,
@@ -259,12 +274,10 @@ fun CalendarScreen(
             onLutealPhaseDaysChange = cycleViewModel::setLutealPhaseDays,
             adaptiveTheme = cycleState.adaptiveTheme,
             onAdaptiveThemeChange = cycleViewModel::setAdaptiveTheme,
-            gradientDayFill = cycleState.gradientDayFill,
-            onGradientDayFillChange = cycleViewModel::setGradientDayFill,
-            vividColors = cycleState.vividColors,
-            onVividColorsChange = cycleViewModel::setVividColors,
             phaseFillStyle = cycleState.phaseFillStyle,
             onPhaseFillStyleChange = cycleViewModel::setPhaseFillStyle,
+            palette = cycleState.palette,
+            onPaletteChange = cycleViewModel::setPalette,
             onClose = { showSettings = false }
         )
     }
@@ -396,8 +409,7 @@ private fun CalendarHeader(
     todayPhase: CyclePhase?,
     onToday: () -> Unit,
     onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit,
-    vividColors: Boolean
+    onOpenSettings: () -> Unit
 ) {
     val appColors = appColors()
     val today = LocalDate.now()
@@ -439,7 +451,7 @@ private fun CalendarHeader(
                 Text(
                     text = "  ${todayPhase.label}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = appColors.phaseColor(todayPhase, vividColors),
+                    color = appColors.phaseColor(todayPhase),
                     modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
@@ -519,7 +531,7 @@ private fun WeekdayHeader() {
 }
 
 @Composable
-private fun PhaseLegend(vividColors: Boolean) {
+private fun PhaseLegend() {
     val appColors = appColors()
     Column(
         modifier = Modifier
@@ -542,7 +554,7 @@ private fun PhaseLegend(vividColors: Boolean) {
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(appColors.phaseColor(phase, vividColors))
+                                .background(appColors.phaseColor(phase))
                         )
                         Text(
                             text = phase.label,
@@ -567,8 +579,6 @@ private fun MonthGrid(
     periods: List<PeriodEntry>,
     marginDays: Int,
     lutealPhaseDays: Int,
-    gradientDayFill: Boolean,
-    vividColors: Boolean,
     phaseFillStyle: PhaseFillStyle,
     accentColor: Color,
     sexByDate: Map<String, SexEntry>,
@@ -595,25 +605,6 @@ private fun MonthGrid(
             // below, so days never jump abruptly in color at a phase boundary.
             val progress = cyclePhaseProgressFor(date, periods, marginDays, lutealPhaseDays)
             GridDayInfo(date, progress?.first, progress?.second ?: 0f, date.isAfter(today))
-        }
-    }
-
-    // Each cell's position (0 at a run's first day, 1 at its last) within its own contiguous
-    // run of same-phase days, spanning week-row wraps just like the rounding/merge logic below --
-    // feeds DayCell's optional "gradient fill" shading.
-    val runFractions = remember(gridDays) {
-        FloatArray(gridDays.size).also { fractions ->
-            var i = 0
-            while (i < gridDays.size) {
-                val phase = gridDays[i].phase
-                var j = i
-                while (j < gridDays.size && gridDays[j].phase == phase) j++
-                val runLength = j - i
-                for (k in i until j) {
-                    fractions[k] = if (runLength <= 1) 0.5f else (k - i).toFloat() / (runLength - 1)
-                }
-                i = j
-            }
         }
     }
 
@@ -666,9 +657,6 @@ private fun MonthGrid(
                         phaseProgress = info.phaseProgress,
                         roundStart = !mergesWithPrev,
                         roundEnd = !mergesWithNext,
-                        runFraction = runFractions[idx],
-                        gradientFillEnabled = gradientDayFill,
-                        vividColors = vividColors,
                         phaseFillStyle = phaseFillStyle,
                         accentColor = accentColor,
                         hasOrgasm = dateKey in orgasmDates,
@@ -726,9 +714,6 @@ private fun DayCell(
     isFuture: Boolean,
     roundStart: Boolean,
     roundEnd: Boolean,
-    runFraction: Float,
-    gradientFillEnabled: Boolean,
-    vividColors: Boolean,
     phaseFillStyle: PhaseFillStyle,
     accentColor: Color,
     hasOrgasm: Boolean,
@@ -752,15 +737,9 @@ private fun DayCell(
     )
     val pillShape = RoundedCornerShape(percent = 50)
 
-    // The base color already blends smoothly toward the next phase's color as the day
-    // progresses through its own phase, so there's no hard jump at a phase boundary -- only
-    // "gradient fill" adds a further within-run darker-to-lighter build on top of that. Muted
-    // by default (appColors.phaseColor desaturates unless "vivid colors" is on) to cut down on
-    // how many loud, competing hues are on screen at once.
-    val phaseColor = phase?.let {
-        val base = appColors.blendedPhaseColor(it, phaseProgress, vividColors)
-        if (gradientFillEnabled) base.runGradientShade(runFraction) else base
-    }
+    // Blends smoothly toward the next phase's color as the day progresses through its own phase,
+    // so there's no hard jump at a phase boundary.
+    val phaseColor = phase?.let { appColors.blendedPhaseColor(it, phaseProgress) }
     val isDashed = phaseFillStyle == PhaseFillStyle.DASHED
     // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
     // since what's coming up is the whole point of a forecast calendar, while already-elapsed

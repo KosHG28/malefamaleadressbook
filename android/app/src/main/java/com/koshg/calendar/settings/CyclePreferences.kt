@@ -1,14 +1,14 @@
 package com.koshg.calendar.settings
 
 import android.content.Context
+import com.koshg.calendar.ui.theme.Palette
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
 private const val PREFS_NAME = "cycle_prefs"
 private const val KEY_LUTEAL_PHASE_DAYS = "luteal_phase_days"
 private const val KEY_ADAPTIVE_THEME = "adaptive_theme"
-private const val KEY_GRADIENT_DAY_FILL = "gradient_day_fill"
-private const val KEY_VIVID_COLORS = "vivid_colors"
 private const val KEY_PHASE_FILL_STYLE = "phase_fill_style"
+private const val KEY_PALETTE = "palette"
 
 /** How a phase-colored day renders in the month grid. */
 enum class PhaseFillStyle {
@@ -32,19 +32,16 @@ class CyclePreferences(context: Context) {
         get() = prefs.getBoolean(KEY_ADAPTIVE_THEME, false)
         set(value) = prefs.edit().putBoolean(KEY_ADAPTIVE_THEME, value).apply()
 
-    /** Shades each day's fill lighter/darker across a contiguous run of the same phase. */
-    var gradientDayFill: Boolean
-        get() = prefs.getBoolean(KEY_GRADIENT_DAY_FILL, false)
-        set(value) = prefs.edit().putBoolean(KEY_GRADIENT_DAY_FILL, value).apply()
-
-    /** Off by default (calmer, desaturated phase colors); on restores the original vivid palette. */
-    var vividColors: Boolean
-        get() = prefs.getBoolean(KEY_VIVID_COLORS, false)
-        set(value) = prefs.edit().putBoolean(KEY_VIVID_COLORS, value).apply()
-
     var phaseFillStyle: PhaseFillStyle
         get() = runCatching {
             PhaseFillStyle.valueOf(prefs.getString(KEY_PHASE_FILL_STYLE, null) ?: "")
         }.getOrDefault(PhaseFillStyle.FILLED)
         set(value) = prefs.edit().putString(KEY_PHASE_FILL_STYLE, value.name).apply()
+
+    /** The app's overall accent/background color scheme, picked in Settings. */
+    var palette: Palette
+        get() = runCatching {
+            Palette.valueOf(prefs.getString(KEY_PALETTE, null) ?: "")
+        }.getOrDefault(Palette.WINE)
+        set(value) = prefs.edit().putString(KEY_PALETTE, value.name).apply()
 }

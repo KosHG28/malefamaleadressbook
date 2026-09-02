@@ -2,9 +2,14 @@ package com.koshg.calendar.ui
 
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -22,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -29,7 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.security.AppLockPreferences
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.ui.theme.Palette
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.ui.theme.previewAccent
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
 /** Sensible bounds for a user-supplied luteal-phase length -- outside this the ovulation estimate stops being meaningful. */
@@ -41,12 +49,10 @@ fun SettingsScreen(
     onLutealPhaseDaysChange: (Int) -> Unit,
     adaptiveTheme: Boolean,
     onAdaptiveThemeChange: (Boolean) -> Unit,
-    gradientDayFill: Boolean,
-    onGradientDayFillChange: (Boolean) -> Unit,
-    vividColors: Boolean,
-    onVividColorsChange: (Boolean) -> Unit,
     phaseFillStyle: PhaseFillStyle,
     onPhaseFillStyleChange: (PhaseFillStyle) -> Unit,
+    palette: Palette,
+    onPaletteChange: (Palette) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -80,14 +86,11 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item { SecuritySection() }
+                item { PaletteSection(palette, onPaletteChange) }
                 item {
                     AppearanceSection(
                         adaptiveTheme = adaptiveTheme,
                         onAdaptiveThemeChange = onAdaptiveThemeChange,
-                        gradientDayFill = gradientDayFill,
-                        onGradientDayFillChange = onGradientDayFillChange,
-                        vividColors = vividColors,
-                        onVividColorsChange = onVividColorsChange,
                         phaseFillStyle = phaseFillStyle,
                         onPhaseFillStyleChange = onPhaseFillStyleChange
                     )
@@ -132,15 +135,64 @@ private fun SecuritySection() {
     }
 }
 
+/** A row of tappable color swatches -- one per [Palette] -- picking the app's overall accent
+ *  and background scheme. Phase colors (menstrual/ovulation/etc.) stay the same regardless of
+ *  the chosen palette, since they carry meaning, not just decoration. */
+@Composable
+private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit) {
+    val appColors = appColors()
+    val dark = isSystemInDarkTheme()
+    SectionCard(title = "Цветовая схема") {
+        Text(
+            "Акцент кнопок и фон календаря — цвета фаз не меняются",
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textSecondary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Palette.entries.forEach { p ->
+                val swatchColor = p.previewAccent(dark)
+                val isSelected = p == palette
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(swatchColor)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.border(2.5.dp, appColors.textPrimary, CircleShape)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .clickable { onPaletteChange(p) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        p.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = appColors.textSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppearanceSection(
     adaptiveTheme: Boolean,
     onAdaptiveThemeChange: (Boolean) -> Unit,
-    gradientDayFill: Boolean,
-    onGradientDayFillChange: (Boolean) -> Unit,
-    vividColors: Boolean,
-    onVividColorsChange: (Boolean) -> Unit,
     phaseFillStyle: PhaseFillStyle,
     onPhaseFillStyleChange: (PhaseFillStyle) -> Unit
 ) {
@@ -180,21 +232,6 @@ private fun AppearanceSection(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Яркие цвета фаз",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = appColors.textPrimary
-                )
-                Text(
-                    "По умолчанию цвета фаз приглушены для более спокойного вида календаря",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = appColors.textSecondary
-                )
-            }
-            Switch(checked = vividColors, onCheckedChange = onVividColorsChange)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
                     "Адаптивная тема",
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
@@ -206,21 +243,6 @@ private fun AppearanceSection(
                 )
             }
             Switch(checked = adaptiveTheme, onCheckedChange = onAdaptiveThemeChange)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "Градиентная заливка дней",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = appColors.textPrimary
-                )
-                Text(
-                    "Внутри одной фазы цвет дня слегка меняется от начала к концу периода",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = appColors.textSecondary
-                )
-            }
-            Switch(checked = gradientDayFill, onCheckedChange = onGradientDayFillChange)
         }
     }
 }

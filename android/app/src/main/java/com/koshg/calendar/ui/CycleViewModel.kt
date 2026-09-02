@@ -8,6 +8,7 @@ import com.koshg.calendar.data.CycleRepository
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.settings.CyclePreferences
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.ui.theme.Palette
 import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 import com.koshg.calendar.util.computeCycleStats
@@ -24,18 +25,16 @@ data class CycleUiState(
     val stats: CycleStats = computeCycleStats(emptyList()),
     val lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS,
     val adaptiveTheme: Boolean = false,
-    val gradientDayFill: Boolean = false,
-    val vividColors: Boolean = false,
-    val phaseFillStyle: PhaseFillStyle = PhaseFillStyle.FILLED
+    val phaseFillStyle: PhaseFillStyle = PhaseFillStyle.FILLED,
+    val palette: Palette = Palette.WINE
 )
 
 /** The appearance toggles bundled into one flow (below) so combining them with [repository.periods]
  *  and [lutealPhaseDays] doesn't need a >5-argument [combine] overload. */
 private data class DisplayPrefs(
     val adaptiveTheme: Boolean,
-    val gradientDayFill: Boolean,
-    val vividColors: Boolean,
-    val phaseFillStyle: PhaseFillStyle
+    val phaseFillStyle: PhaseFillStyle,
+    val palette: Palette
 )
 
 class CycleViewModel(
@@ -45,13 +44,12 @@ class CycleViewModel(
 
     private val lutealPhaseDays = MutableStateFlow(preferences.lutealPhaseDays)
     private val adaptiveTheme = MutableStateFlow(preferences.adaptiveTheme)
-    private val gradientDayFill = MutableStateFlow(preferences.gradientDayFill)
-    private val vividColors = MutableStateFlow(preferences.vividColors)
     private val phaseFillStyle = MutableStateFlow(preferences.phaseFillStyle)
+    private val palette = MutableStateFlow(preferences.palette)
 
     private val displayPrefs = combine(
-        adaptiveTheme, gradientDayFill, vividColors, phaseFillStyle
-    ) { adaptive, gradient, vivid, fillStyle -> DisplayPrefs(adaptive, gradient, vivid, fillStyle) }
+        adaptiveTheme, phaseFillStyle, palette
+    ) { adaptive, fillStyle, pal -> DisplayPrefs(adaptive, fillStyle, pal) }
 
     val uiState: StateFlow<CycleUiState> = combine(
         repository.periods, lutealPhaseDays, displayPrefs
@@ -61,9 +59,8 @@ class CycleViewModel(
             stats = computeCycleStats(periods, lutealPhaseDays = luteal),
             lutealPhaseDays = luteal,
             adaptiveTheme = prefs.adaptiveTheme,
-            gradientDayFill = prefs.gradientDayFill,
-            vividColors = prefs.vividColors,
-            phaseFillStyle = prefs.phaseFillStyle
+            phaseFillStyle = prefs.phaseFillStyle,
+            palette = prefs.palette
         )
     }.stateIn(
         scope = viewModelScope,
@@ -71,9 +68,8 @@ class CycleViewModel(
         initialValue = CycleUiState(
             lutealPhaseDays = preferences.lutealPhaseDays,
             adaptiveTheme = preferences.adaptiveTheme,
-            gradientDayFill = preferences.gradientDayFill,
-            vividColors = preferences.vividColors,
-            phaseFillStyle = preferences.phaseFillStyle
+            phaseFillStyle = preferences.phaseFillStyle,
+            palette = preferences.palette
         )
     )
 
@@ -96,19 +92,14 @@ class CycleViewModel(
         adaptiveTheme.value = enabled
     }
 
-    fun setGradientDayFill(enabled: Boolean) {
-        preferences.gradientDayFill = enabled
-        gradientDayFill.value = enabled
-    }
-
-    fun setVividColors(enabled: Boolean) {
-        preferences.vividColors = enabled
-        vividColors.value = enabled
-    }
-
     fun setPhaseFillStyle(style: PhaseFillStyle) {
         preferences.phaseFillStyle = style
         phaseFillStyle.value = style
+    }
+
+    fun setPalette(newPalette: Palette) {
+        preferences.palette = newPalette
+        palette.value = newPalette
     }
 
     companion object {

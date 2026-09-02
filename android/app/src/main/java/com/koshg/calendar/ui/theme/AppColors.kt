@@ -3,6 +3,7 @@ package com.koshg.calendar.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import com.koshg.calendar.util.CyclePhase
@@ -35,10 +36,109 @@ data class AppColors(
     val textSecondary: Color,
     val warning: Color,
     /** The orgasm-marker star -- a fixed warm gold, deliberately independent of phase/marker
-     *  colors so it stays recognizable against any of them, muted or vivid. */
+     *  colors so it stays recognizable against any of them. */
     val orgasmStar: Color
 )
 
+/** A named color scheme the user picks in Settings -- only the "skin" (accent + backgrounds)
+ *  changes between palettes; phase/marker colors carry semantic meaning (menstrual = red,
+ *  ovulation = teal, etc.) and stay the same across every palette. */
+enum class Palette(val label: String) {
+    WINE("Винная"),
+    MIDNIGHT("Полночь"),
+    FOREST("Лес"),
+    PLUM("Слива"),
+    GRAPHITE("Графит")
+}
+
+val LocalPalette = compositionLocalOf { Palette.WINE }
+
+private data class PaletteSkin(
+    val accent: Color,
+    val gradientTop: Color,
+    val gradientBottom: Color,
+    val warmBackground: Color,
+    val warmSurface: Color
+)
+
+private val LightPaletteSkins = mapOf(
+    Palette.WINE to PaletteSkin(
+        accent = Color(0xFFFF5C8A),
+        gradientTop = Color(0xFFFFEFE1),
+        gradientBottom = Color(0xFFFCE1EC),
+        warmBackground = Color(0xFFFBF3EA),
+        warmSurface = Color(0xFFFFFDF9)
+    ),
+    Palette.MIDNIGHT to PaletteSkin(
+        accent = Color(0xFF5C7CFF),
+        gradientTop = Color(0xFFE6ECFF),
+        gradientBottom = Color(0xFFE1E8FC),
+        warmBackground = Color(0xFFF3F5FB),
+        warmSurface = Color(0xFFFDFDFF)
+    ),
+    Palette.FOREST to PaletteSkin(
+        accent = Color(0xFF3FA66B),
+        gradientTop = Color(0xFFE4F5E1),
+        gradientBottom = Color(0xFFE1F0EC),
+        warmBackground = Color(0xFFF2F8EF),
+        warmSurface = Color(0xFFFDFFFB)
+    ),
+    Palette.PLUM to PaletteSkin(
+        accent = Color(0xFFA15CFF),
+        gradientTop = Color(0xFFF1E6FF),
+        gradientBottom = Color(0xFFF5E1EC),
+        warmBackground = Color(0xFFF9F3FB),
+        warmSurface = Color(0xFFFFFDFF)
+    ),
+    Palette.GRAPHITE to PaletteSkin(
+        accent = Color(0xFF6B7280),
+        gradientTop = Color(0xFFECEDEF),
+        gradientBottom = Color(0xFFE3E5E8),
+        warmBackground = Color(0xFFF5F5F6),
+        warmSurface = Color(0xFFFFFFFF)
+    )
+)
+
+private val DarkPaletteSkins = mapOf(
+    Palette.WINE to PaletteSkin(
+        accent = Color(0xFFFF8FAE),
+        gradientTop = Color(0xFF4A211A),
+        gradientBottom = Color(0xFF120D0B),
+        warmBackground = Color(0xFF201C18),
+        warmSurface = Color(0xFF2A2420)
+    ),
+    Palette.MIDNIGHT to PaletteSkin(
+        accent = Color(0xFF8FA6FF),
+        gradientTop = Color(0xFF1A2244),
+        gradientBottom = Color(0xFF0B0D12),
+        warmBackground = Color(0xFF181A20),
+        warmSurface = Color(0xFF202430)
+    ),
+    Palette.FOREST to PaletteSkin(
+        accent = Color(0xFF6FCB93),
+        gradientTop = Color(0xFF16321F),
+        gradientBottom = Color(0xFF0C120D),
+        warmBackground = Color(0xFF181D19),
+        warmSurface = Color(0xFF212820)
+    ),
+    Palette.PLUM to PaletteSkin(
+        accent = Color(0xFFC08FFF),
+        gradientTop = Color(0xFF2E1A44),
+        gradientBottom = Color(0xFF120B14),
+        warmBackground = Color(0xFF1C1820),
+        warmSurface = Color(0xFF26202C)
+    ),
+    Palette.GRAPHITE to PaletteSkin(
+        accent = Color(0xFF9CA3AF),
+        gradientTop = Color(0xFF262830),
+        gradientBottom = Color(0xFF101114),
+        warmBackground = Color(0xFF1A1B1E),
+        warmSurface = Color(0xFF232428)
+    )
+)
+
+/** The base field values (everything a palette doesn't override: phase/marker/text colors) --
+ *  every palette's [AppColors] is this template with its own [PaletteSkin] copied in. */
 private val LightAppColors = AppColors(
     accent = Color(0xFFFF5C8A),
     period = Color(0xFFE0577A),
@@ -54,9 +154,6 @@ private val LightAppColors = AppColors(
     warmSurface = Color(0xFFFFFDF9),
     gradientTop = Color(0xFFFFEFE1),
     gradientBottom = Color(0xFFFCE1EC),
-    // Brighter/more saturated than the dark-theme phase palette below -- the original shared
-    // values were tuned to pop against a near-black background and read as muddy/dark here
-    // against the pale cream/pink gradient, even with "vivid colors" on.
     menstrual = Color(0xFFEF5D80),
     follicular = Color(0xFF6E8FDB),
     lhPeak = Color(0xFFFFC107),
@@ -94,8 +191,25 @@ private val DarkAppColors = AppColors(
     orgasmStar = Color(0xFFFFC94D)
 )
 
+/** The swatch color shown for [palette] in the Settings picker, independent of the currently
+ *  active palette. */
+fun Palette.previewAccent(dark: Boolean): Color =
+    (if (dark) DarkPaletteSkins else LightPaletteSkins).getValue(this).accent
+
 @Composable
-fun appColors(): AppColors = if (isSystemInDarkTheme()) DarkAppColors else LightAppColors
+fun appColors(): AppColors {
+    val palette = LocalPalette.current
+    val dark = isSystemInDarkTheme()
+    val base = if (dark) DarkAppColors else LightAppColors
+    val skin = (if (dark) DarkPaletteSkins else LightPaletteSkins).getValue(palette)
+    return base.copy(
+        accent = skin.accent,
+        gradientTop = skin.gradientTop,
+        gradientBottom = skin.gradientBottom,
+        warmBackground = skin.warmBackground,
+        warmSurface = skin.warmSurface
+    )
+}
 
 fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.MENSTRUAL -> menstrual
@@ -112,37 +226,24 @@ fun Color.desaturated(amount: Float): Color {
     return lerp(this, Color(gray, gray, gray, alpha), amount.coerceIn(0f, 1f))
 }
 
-/** How much [colorFor] is desaturated when "vivid colors" is off (the calmer default). */
+/** How much [colorFor] is desaturated for the calendar fill -- a calmer, less "pestryy" grid
+ *  than the fully-saturated phase hues read as. */
 private const val MUTED_PHASE_DESATURATION = 0.35f
 
-/** The phase color to actually paint with -- full-saturation [colorFor] when [vivid] is on
- *  (the old, brighter look, opt-in), or a calmer desaturated variant by default. */
-fun AppColors.phaseColor(phase: CyclePhase, vivid: Boolean): Color {
-    val base = colorFor(phase)
-    return if (vivid) base else base.desaturated(MUTED_PHASE_DESATURATION)
-}
+/** The phase color to actually paint the calendar with -- a desaturated variant of [colorFor]. */
+fun AppColors.phaseColor(phase: CyclePhase): Color = colorFor(phase).desaturated(MUTED_PHASE_DESATURATION)
 
 /** The day-cell fill color for [phase] at [progress] through it (0 = the phase's first day, 1 =
  *  its last), blended toward the *next* phase's color so adjacent days never jump abruptly at a
  *  phase boundary -- a phase's last day already reads almost as the next phase's color, and that
  *  next phase's first day (progress 0) continues from exactly there, same trick as
  *  [adaptiveAccent]. LH_PEAK is a single day and stays pure rather than blending, since it's
- *  meant to stand out as a spike, not a transition. Respects the vivid/muted choice like
- *  [phaseColor]. */
-fun AppColors.blendedPhaseColor(phase: CyclePhase, progress: Float, vivid: Boolean): Color {
-    if (phase == CyclePhase.LH_PEAK) return phaseColor(phase, vivid)
+ *  meant to stand out as a spike, not a transition. */
+fun AppColors.blendedPhaseColor(phase: CyclePhase, progress: Float): Color {
+    if (phase == CyclePhase.LH_PEAK) return phaseColor(phase)
     val order = CyclePhase.entries
     val next = order[(phase.ordinal + 1) % order.size]
-    return lerp(phaseColor(phase, vivid), phaseColor(next, vivid), progress.coerceIn(0f, 1f))
-}
-
-/** Slightly darker/lighter variant of this color, for a subtle within-run gradient across a
- *  contiguous span of same-phase calendar days -- fraction 0 = run start (darker), 1 = run end
- *  (lighter), so a run visually "builds" toward its end (e.g. approaching ovulation). */
-fun Color.runGradientShade(fraction: Float): Color {
-    val dark = lerp(this, Color.Black, 0.16f)
-    val light = lerp(this, Color.White, 0.20f)
-    return lerp(dark, light, fraction.coerceIn(0f, 1f))
+    return lerp(phaseColor(phase), phaseColor(next), progress.coerceIn(0f, 1f))
 }
 
 private fun AppColors.colorForNext(phase: CyclePhase): Color {
