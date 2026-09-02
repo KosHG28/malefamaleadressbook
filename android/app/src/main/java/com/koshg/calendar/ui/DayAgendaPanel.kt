@@ -45,6 +45,7 @@ import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.dayAgendaLabel
+import com.koshg.calendar.util.phaseTipForMen
 import java.time.LocalDate
 
 @Composable
@@ -109,7 +110,7 @@ fun DayAgendaPanel(
         ) {
             if (phase != null) {
                 Text(
-                    text = phaseTipForMen(phase),
+                    text = phaseTipForMen(phase, selectedDate),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary,
                     modifier = Modifier.fillMaxWidth()
@@ -152,24 +153,6 @@ fun DayAgendaPanel(
             }
         }
     }
-}
-
-/** A short, general-purpose suggestion for a partner reading the selected day's phase --
- *  deliberately generic (not tailored to this couple's own logged data), since it's meant as a
- *  quick nudge, not a diagnosis. */
-private fun phaseTipForMen(phase: CyclePhase): String = when (phase) {
-    CyclePhase.MENSTRUAL ->
-        "Возможны спазмы и упадок сил. Уместнее забота без напора — грелка, чай, плед, фильм " +
-            "рядом — и не давить на близость, если сама не проявит инициативу."
-    CyclePhase.FOLLICULAR ->
-        "Энергия и настроение обычно растут. Хорошее время для активных свиданий, новых идей " +
-            "и совместных планов."
-    CyclePhase.OVULATORY ->
-        "Часто пик энергии и либидо. Подходящий момент для романтики и близости — но ориентируйтесь " +
-            "на её настроение в моменте, а не только на фазу."
-    CyclePhase.LUTEAL ->
-        "Ближе к концу фазы возможны перепады настроения и ПМС. Больше терпения, меньше критики — " +
-            "спокойный тихий вечер обычно заходит лучше активных планов."
 }
 
 @Composable

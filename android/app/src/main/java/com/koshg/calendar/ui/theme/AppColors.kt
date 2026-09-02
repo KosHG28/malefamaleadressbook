@@ -251,3 +251,17 @@ fun AppColors.adaptiveAccent(todayPhaseProgress: Pair<CyclePhase, Float>?): Colo
     val (phase, fraction) = todayPhaseProgress
     return lerp(colorFor(phase), colorForNext(phase), fraction.coerceIn(0f, 1f))
 }
+
+/** Same phase-driven blend as [adaptiveAccent], applied lightly to the background gradient so
+ *  "adaptive theme" tints the whole screen rather than just the FAB/selection ring. Blended only
+ *  a little (not toward full saturation) so the text contrast already tuned against the static
+ *  gradient stays safe. Falls back to the static gradient under the same conditions as
+ *  [adaptiveAccent]. */
+fun AppColors.adaptiveGradient(todayPhaseProgress: Pair<CyclePhase, Float>?): Pair<Color, Color> {
+    if (todayPhaseProgress == null) return gradientTop to gradientBottom
+    val accent = adaptiveAccent(todayPhaseProgress)
+    return lerp(gradientTop, accent, ADAPTIVE_GRADIENT_BLEND) to
+        lerp(gradientBottom, accent, ADAPTIVE_GRADIENT_BLEND)
+}
+
+private const val ADAPTIVE_GRADIENT_BLEND = 0.15f

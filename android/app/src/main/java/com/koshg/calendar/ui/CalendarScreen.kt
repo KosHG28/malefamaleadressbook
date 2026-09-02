@@ -17,6 +17,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -105,6 +106,7 @@ import com.koshg.calendar.util.cyclePhaseFor
 import com.koshg.calendar.util.ovulationDateFor
 import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
+import com.koshg.calendar.util.phaseTipForMen
 import com.koshg.calendar.util.toLocalDateOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -285,18 +287,22 @@ private fun CalendarScreenContent(
         else -> "Добавить"
     }
 
-    val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
-
-    // "Adaptive theme" blends the accent across cycle phases instead of a fixed color -- computed
-    // once here and threaded down to the FAB and the calendar's own selected-day ring, rather than
-    // touching every accent-colored element in the app (dialogs/sheets keep the static accent).
-    val dynamicAccent = if (cycleState.adaptiveTheme) {
-        appColors.adaptiveAccent(
-            cyclePhaseProgressFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays, cycleState.lutealPhaseDays)
-        )
+    // "Adaptive theme" blends the accent across cycle phases instead of a fixed color -- the same
+    // phase progress drives the FAB/selected-day ring accent below and, more lightly, the screen's
+    // own background gradient, rather than touching every accent-colored element in the app
+    // (dialogs/sheets keep the static accent).
+    val phaseProgress = if (cycleState.adaptiveTheme) {
+        cyclePhaseProgressFor(LocalDate.now(), cycleState.periods, cycleState.stats.appliedMarginDays, cycleState.lutealPhaseDays)
     } else {
-        appColors.accent
+        null
     }
+    val dynamicAccent = if (cycleState.adaptiveTheme) appColors.adaptiveAccent(phaseProgress) else appColors.accent
+    val (gradientTop, gradientBottom) = if (cycleState.adaptiveTheme) {
+        appColors.adaptiveGradient(phaseProgress)
+    } else {
+        appColors.gradientTop to appColors.gradientBottom
+    }
+    val gradient = Brush.verticalGradient(listOf(gradientTop, gradientBottom))
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Scaffold(
@@ -1007,8 +1013,13 @@ private fun MonthNav(
     onToggleRangeSelectionMode: () -> Unit
 ) {
     val appColors = appColors()
+    // A round tonal backing behind each chevron, echoing the FAB/day-pill roundness that runs
+    // through the rest of the app -- a bare flat chevron read as out of place here.
+    val navButtonModifier = Modifier
+        .size(32.dp)
+        .background(appColors.warmSurface.copy(alpha = 0.6f), CircleShape)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onPrev, modifier = navButtonModifier) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий месяц", tint = appColors.textPrimary)
         }
         Spacer(Modifier.width(4.dp))
@@ -1020,7 +1031,7 @@ private fun MonthNav(
             color = appColors.textPrimary
         )
         Spacer(Modifier.width(4.dp))
-        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onNext, modifier = navButtonModifier) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Следующий месяц", tint = appColors.textPrimary)
         }
         Spacer(Modifier.weight(1f))
@@ -1065,6 +1076,13 @@ private fun WeekdayHeader() {
 @Composable
 private fun PhaseLegend() {
     val appColors = appColors()
+    val haptics = LocalHaptics.current
+    // A dot and a label alone don't explain anything to someone who doesn't already know what
+    // each phase means -- tapping an entry reveals a short explanation instead, collapsed by
+    // default so the legend stays compact. Only one open at a time, same tap-to-reveal pattern as
+    // DayAgendaPanel's own phase tip (which this reuses the text of).
+    var expandedPhase by remember { mutableStateOf<CyclePhase?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1079,7 +1097,12 @@ private fun PhaseLegend() {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                haptics.perform(HapticEvent.Tap)
+                                expandedPhase = if (expandedPhase == phase) null else phase
+                            }
                     ) {
                         Box(
                             modifier = Modifier
@@ -1097,6 +1120,21 @@ private fun PhaseLegend() {
                         Spacer(Modifier.weight(1f))
                     }
                 }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expandedPhase != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            expandedPhase?.let { phase ->
+                Text(
+                    text = phaseTipForMen(phase),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                )
             }
         }
     }
@@ -1185,6 +1223,17 @@ private fun MonthGrid(
         }
     }
 
+    // The phase immediately outside either end of this page's own grid -- so the very first/last
+    // cell can tell whether it merges into a run that actually started/continues on the adjacent
+    // month's page, instead of always rounding off there just because this page's own gridDays
+    // list has nothing before/after it to compare against.
+    val phaseBeforeGrid = remember(gridStart, periods, marginDays, lutealPhaseDays) {
+        cyclePhaseFor(gridStart.minusDays(1), periods, marginDays, lutealPhaseDays)
+    }
+    val phaseAfterGrid = remember(gridStart, periods, marginDays, lutealPhaseDays) {
+        cyclePhaseFor(gridStart.plusDays((weeks * 7).toLong()), periods, marginDays, lutealPhaseDays)
+    }
+
     // Hit-testing for the range-selection drag below: each cell reports its own on-screen
     // bounds in window coordinates (so they're directly comparable across rows/weeks, unlike
     // parent-relative bounds which differ per week's own Row), and the drag gesture just checks
@@ -1255,22 +1304,26 @@ private fun MonthGrid(
                 for (dow in 0 until 7) {
                     val idx = week * 7 + dow
                     val info = gridDays[idx]
-                    // Deliberately look at the true previous/next day in the flat list, not just
-                    // within this row -- a phase run that wraps from Sunday to the next Monday is
-                    // still one continuous run, so its edge at the row break should stay square
-                    // (roundStart/roundEnd = false there), same as any other internal join. Only
-                    // the row's own horizontal gap (below) is limited to within-row neighbors,
-                    // since that's a rendering concern, not a phase-continuity one.
-                    val prevInfo = if (idx > 0) gridDays[idx - 1] else null
-                    val nextInfo = if (idx < gridDays.lastIndex) gridDays[idx + 1] else null
+                    // Deliberately look at the true previous/next day, not just within this page's
+                    // own grid -- a phase run that wraps from Sunday to the next Monday is still
+                    // one continuous run, so its edge at the row break should stay square
+                    // (roundStart/roundEnd = false there), same as any other internal join. That
+                    // also applies at the very first/last cell of the grid, which is why the
+                    // out-of-range ends fall back to phaseBeforeGrid/phaseAfterGrid instead of null
+                    // -- otherwise a run that merely continues from the previous month's page
+                    // would always cap off as if it started right here. Only the row's own
+                    // horizontal gap (below) is limited to within-row neighbors, since that's a
+                    // rendering concern, not a phase-continuity one.
+                    val prevPhase = if (idx > 0) gridDays[idx - 1].phase else phaseBeforeGrid
+                    val nextPhase = if (idx < gridDays.lastIndex) gridDays[idx + 1].phase else phaseAfterGrid
 
                     // "Dashed" style never merges across days -- each day is its own small
                     // independent pill, closer to the older, lighter-weight look than the
                     // solid-fill style's continuous same-phase capsule.
-                    val mergesWithPrev = phaseFillStyle == PhaseFillStyle.FILLED && prevInfo != null &&
-                        info.phase != null && info.phase == prevInfo.phase
-                    val mergesWithNext = phaseFillStyle == PhaseFillStyle.FILLED && nextInfo != null &&
-                        info.phase != null && info.phase == nextInfo.phase
+                    val mergesWithPrev = phaseFillStyle == PhaseFillStyle.FILLED &&
+                        info.phase != null && info.phase == prevPhase
+                    val mergesWithNext = phaseFillStyle == PhaseFillStyle.FILLED &&
+                        info.phase != null && info.phase == nextPhase
 
                     if (dow > 0) {
                         Spacer(Modifier.width(if (mergesWithPrev) 0.dp else 3.dp))
@@ -1343,6 +1396,14 @@ private fun Modifier.dashedOutline(
     )
 }
 
+/** How many days out a predicted future day's fill has fully faded to [MIN_FUTURE_FILL_ALPHA] --
+ *  roughly one forecast cycle, past which the fade holds flat instead of continuing indefinitely. */
+private const val FUTURE_FADE_HORIZON_DAYS = 30f
+
+/** Floor for a far-future day's fill alpha -- low enough to read as "less certain" without the
+ *  fill disappearing into the background on the muted palettes (Graphite, Plum). */
+private const val MIN_FUTURE_FILL_ALPHA = 0.4f
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DayCell(
@@ -1388,6 +1449,19 @@ private fun DayCell(
     val monthAlpha = if (inCurrentMonth) 1f else 0.4f
     val contentAlpha = monthAlpha * (if (isFuture) 1f else 0.6f)
 
+    // The further out a predicted day sits, the less certain that prediction is -- fading its
+    // fill (never the day-number text, which stays at contentAlpha for legibility) communicates
+    // that visually. Ramps down to MIN_FUTURE_FILL_ALPHA by FUTURE_FADE_HORIZON_DAYS out (roughly
+    // one full forecast cycle), then holds flat rather than fading indefinitely.
+    val daysAhead = if (isFuture) ChronoUnit.DAYS.between(LocalDate.now(), date) else 0L
+    val futureFillFade = if (isFuture) {
+        val t = (daysAhead.toFloat() / FUTURE_FADE_HORIZON_DAYS).coerceIn(0f, 1f)
+        1f - t * (1f - MIN_FUTURE_FILL_ALPHA)
+    } else {
+        1f
+    }
+    val fillAlpha = contentAlpha * futureFillFade
+
     val textColor = when {
         phaseColor != null && !isDashed -> Color.White
         else -> appColors.textPrimary
@@ -1405,8 +1479,8 @@ private fun DayCell(
     val cellModifier = when {
         fillColor != null && !isDashed -> Modifier
             .clip(runShape)
-            .background(fillColor.copy(alpha = contentAlpha))
-        fillColor != null -> Modifier.dashedOutline(fillColor.copy(alpha = contentAlpha))
+            .background(fillColor.copy(alpha = fillAlpha))
+        fillColor != null -> Modifier.dashedOutline(fillColor.copy(alpha = fillAlpha))
         else -> Modifier
             .clip(pillShape)
             .background(appColors.warmSurface.copy(alpha = monthAlpha))

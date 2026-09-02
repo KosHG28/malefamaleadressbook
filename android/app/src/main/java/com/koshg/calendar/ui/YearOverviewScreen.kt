@@ -1,5 +1,6 @@
 package com.koshg.calendar.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -52,6 +53,10 @@ fun YearOverviewScreen(
     val haptics = LocalHaptics.current
     var year by remember { mutableStateOf(initialYear) }
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
+
+    // Shown as a plain in-place overlay, not a Dialog/Popup window, so it needs its own back
+    // interception -- see HistoryScreen's BackHandler for why.
+    BackHandler(onBack = onClose)
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -161,7 +166,9 @@ private fun MonthMosaic(
                         modifier = Modifier
                             .weight(1f)
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(2.dp))
+                            // Percent-based, like every other round element in the app (legend
+                            // dots, day-cell pills) -- a plain square read as out of place here.
+                            .clip(RoundedCornerShape(50))
                             .background(phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground)
                     )
                 }

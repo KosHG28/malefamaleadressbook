@@ -1,5 +1,6 @@
 package com.koshg.calendar.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,6 +55,12 @@ fun HistoryScreen(
 ) {
     val appColors = appColors()
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
+
+    // This screen is shown as a plain in-place overlay (a boolean flag in CalendarScreen), not
+    // through a Dialog/Popup window -- those intercept the system back gesture on their own, but
+    // this doesn't, so without this handler swiping back here would fall through to the Activity
+    // and close the whole app instead of just this screen.
+    BackHandler(onBack = onClose)
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Column(modifier = Modifier.fillMaxSize()) {

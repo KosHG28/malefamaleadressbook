@@ -1,6 +1,7 @@
 package com.koshg.calendar.ui
 
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,6 +73,10 @@ fun SettingsScreen(
 ) {
     val appColors = appColors()
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
+
+    // Shown as a plain in-place overlay, not a Dialog/Popup window, so it needs its own back
+    // interception -- see HistoryScreen's BackHandler for why.
+    BackHandler(onBack = onClose)
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -212,7 +217,9 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
         // A tiny mock of the calendar's own accent/background elements -- appColors() already
         // resolves the just-tapped palette (LocalPalette flows down from the committed setting),
         // so this updates live the instant a swatch above is picked, no need to leave Settings
-        // to see the effect on the actual calendar.
+        // to see the effect on the actual calendar. Kept in sync with the actual shapes used on
+        // the calendar (capsule day cell, pill-shaped Add button with its icon+label) rather than
+        // generic circles, so it still reads as "this app" and not just "some accent color".
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -224,7 +231,10 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape).background(appColors.accent),
+                    modifier = Modifier
+                        .size(width = 34.dp, height = 30.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(appColors.accent),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -236,11 +246,21 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
                 }
                 Text("Предпросмотр", style = MaterialTheme.typography.labelSmall, color = appColors.textSecondary)
             }
-            Box(
-                modifier = Modifier.size(30.dp).clip(CircleShape).background(appColors.accent),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(appColors.accent)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Text(
+                    "Добавить",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
