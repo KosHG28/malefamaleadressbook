@@ -1,9 +1,13 @@
 package com.koshg.calendar.settings
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.koshg.calendar.reminders.ReminderScheduler
 import com.koshg.calendar.ui.theme.Palette
+import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
 private const val PREFS_NAME = "cycle_prefs"
@@ -13,6 +17,10 @@ private const val KEY_PHASE_FILL_STYLE = "phase_fill_style"
 private const val KEY_PALETTE = "palette"
 private const val KEY_SUGGESTIONS_ENABLED = "suggestions_enabled"
 private const val KEY_SUGGESTION_DISMISSED_UNTIL = "suggestion_dismissed_until_epoch_day"
+private const val KEY_THEME_MODE = "theme_mode"
+private const val KEY_REMINDERS_ENABLED = "reminders_enabled"
+private const val KEY_LAST_PERIOD_REMINDER_EPOCH_DAY = "last_period_reminder_epoch_day"
+private const val KEY_LAST_OVULATION_REMINDER_EPOCH_DAY = "last_ovulation_reminder_epoch_day"
 
 /** How a phase-colored day renders in the month grid. */
 enum class PhaseFillStyle {
@@ -34,7 +42,17 @@ class CyclePreferences(context: Context) {
         // rollout, when the activity-alias components are brand new and default to the manifest's
         // enabled state (Wine) regardless of whatever palette was already saved.
         applyLauncherIcon(palette)
+
+        // Same self-healing idea for reminders: re-syncs the WorkManager job to match the stored
+        // setting (and current permission state) on every start, so an OS-level permission
+        // revocation or an app upgrade never leaves a stale job running or a wanted one missing.
+        ReminderScheduler.ensureChannel(appContext)
+        ReminderScheduler.sync(appContext, remindersEnabled && hasNotificationPermission())
     }
+
+    private fun hasNotificationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
 
     var lutealPhaseDays: Int
         get() = prefs.getInt(KEY_LUTEAL_PHASE_DAYS, DEFAULT_LUTEAL_PHASE_DAYS)
@@ -99,4 +117,33 @@ class CyclePreferences(context: Context) {
     var suggestionDismissedUntilEpochDay: Long
         get() = prefs.getLong(KEY_SUGGESTION_DISMISSED_UNTIL, 0L)
         set(value) = prefs.edit().putLong(KEY_SUGGESTION_DISMISSED_UNTIL, value).apply()
+
+    /** Overrides the system light/dark setting, or follows it (the default). */
+    var themeMode: ThemeMode
+        get() = runCatching {
+            ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, null) ?: "")
+        }.getOrDefault(ThemeMode.SYSTEM)
+        set(value) = prefs.edit().putString(KEY_THEME_MODE, value.name).apply()
+
+    /** Whether the daily reminder worker may post a period-approaching/ovulation-day notification.
+     *  The setter (re-)syncs the WorkManager job immediately, same as [palette]'s launcher-icon
+     *  side effect -- the caller (Settings) only needs to have already secured the POST_NOTIFICATIONS
+     *  permission before flipping this on; [hasNotificationPermission] double-checks it here too. */
+    var remindersEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REMINDERS_ENABLED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, value).apply()
+            ReminderScheduler.sync(appContext, value && hasNotificationPermission())
+        }
+
+    /** Epoch day the period-approaching reminder last fired, so a same-day worker re-run
+     *  (retry, doze-window slip) never posts it twice. */
+    var lastPeriodReminderEpochDay: Long
+        get() = prefs.getLong(KEY_LAST_PERIOD_REMINDER_EPOCH_DAY, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_PERIOD_REMINDER_EPOCH_DAY, value).apply()
+
+    /** Same de-duplication as [lastPeriodReminderEpochDay], for the ovulation-day reminder. */
+    var lastOvulationReminderEpochDay: Long
+        get() = prefs.getLong(KEY_LAST_OVULATION_REMINDER_EPOCH_DAY, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_OVULATION_REMINDER_EPOCH_DAY, value).apply()
 }

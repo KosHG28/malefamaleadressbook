@@ -7,6 +7,9 @@ import android.view.View
 import android.view.animation.AccelerateInterpolator
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.animation.doOnEnd
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
@@ -22,6 +25,7 @@ import com.koshg.calendar.ui.CalendarViewModel
 import com.koshg.calendar.ui.CycleViewModel
 import com.koshg.calendar.ui.IntimacyViewModel
 import com.koshg.calendar.ui.theme.CalendarAppTheme
+import com.koshg.calendar.ui.theme.resolveDark
 
 private const val SPLASH_EXIT_ANIMATION_MS = 260L
 
@@ -68,7 +72,9 @@ class MainActivity : FragmentActivity() {
         }
 
         setContent {
-            CalendarAppTheme {
+            val cycleState by cycleViewModel.uiState.collectAsState()
+            val darkTheme = cycleState.themeMode.resolveDark(isSystemInDarkTheme())
+            CalendarAppTheme(darkTheme = darkTheme) {
                 ProvideHaptics {
                     AppLockGate {
                         CalendarScreen(calendarViewModel, cycleViewModel, intimacyViewModel)

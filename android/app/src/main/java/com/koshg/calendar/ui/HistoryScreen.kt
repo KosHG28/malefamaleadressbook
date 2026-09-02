@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -45,6 +46,7 @@ fun HistoryScreen(
     sexEntries: List<SexEntry>,
     proposalEntries: List<ProposalEntry>,
     masturbationEntries: List<MasturbationEntry>,
+    isIrregular: Boolean,
     onClose: () -> Unit,
     onOpenYearOverview: () -> Unit
 ) {
@@ -81,7 +83,7 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                item { CycleLengthSection(periods) }
+                item { CycleLengthSection(periods, isIrregular) }
                 item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
                 item { ProposalStatsSection(proposalEntries) }
                 item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
@@ -125,7 +127,7 @@ private fun StatBlock(label: String, value: String) {
 }
 
 @Composable
-private fun CycleLengthSection(periods: List<PeriodEntry>) {
+private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean) {
     val appColors = appColors()
     val sortedStarts = remember(periods) {
         periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
@@ -142,6 +144,24 @@ private fun CycleLengthSection(periods: List<PeriodEntry>) {
                 color = appColors.textSecondary
             )
         } else {
+            if (isIrregular) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(appColors.warning.copy(alpha = 0.15f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = appColors.warning, modifier = Modifier.size(16.dp))
+                    Text(
+                        "Цикл нерегулярный -- длины сильно разбросаны, прогноз менее точен",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = appColors.warning
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             val average = lengths.average().roundToInt()
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 StatBlock("Средняя", "$average дн.")

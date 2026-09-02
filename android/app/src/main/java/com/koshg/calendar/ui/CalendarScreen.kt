@@ -1,5 +1,8 @@
 package com.koshg.calendar.ui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -47,20 +50,25 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.koshg.calendar.data.CalendarEvent
+import com.koshg.calendar.data.DataSnapshot
 import com.koshg.calendar.data.MasturbationEntry
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
+import com.koshg.calendar.data.parseDataSnapshot
+import com.koshg.calendar.data.toExportJson
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.LocalPalette
+import com.koshg.calendar.ui.theme.LocalThemeMode
 import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.phaseColor
@@ -101,10 +109,14 @@ fun CalendarScreen(
 ) {
     val cycleState by cycleViewModel.uiState.collectAsState()
 
-    // Everything below reads its colors via appColors(), which resolves the current palette from
-    // this CompositionLocal -- providing it once here, rather than threading a palette parameter
-    // through every screen/sheet, lets picking a new scheme in Settings repaint the whole app.
-    CompositionLocalProvider(LocalPalette provides cycleState.palette) {
+    // Everything below reads its colors via appColors(), which resolves the current palette/theme
+    // mode from these CompositionLocals -- providing them once here, rather than threading
+    // parameters through every screen/sheet, lets picking a new scheme or light/dark override in
+    // Settings repaint the whole app.
+    CompositionLocalProvider(
+        LocalPalette provides cycleState.palette,
+        LocalThemeMode provides cycleState.themeMode
+    ) {
         CalendarScreenContent(viewModel, cycleViewModel, intimacyViewModel, cycleState)
     }
 }
@@ -121,6 +133,52 @@ private fun CalendarScreenContent(
     val intimacyState by intimacyViewModel.uiState.collectAsState()
     val haptics = LocalHaptics.current
     val appColors = appColors()
+    val context = LocalContext.current
+
+    // Manual export/import (Settings' "Данные" section) -- a plain JSON file the user picks a
+    // destination/source for via the system document picker, independent of Android's own Auto
+    // Backup: it's on-demand, portable to another device without the same Google account, and
+    // readable/editable outside the app.
+    val exportDataLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val snapshot = DataSnapshot(
+            periods = cycleState.periods,
+            events = uiState.events,
+            sexEntries = intimacyState.sexEntries,
+            proposalEntries = intimacyState.proposalEntries,
+            masturbationEntries = intimacyState.masturbationEntries
+        )
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(snapshot.toExportJson().toByteArray()) }
+        }
+    }
+    val importDataLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val json = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } ?: return@runCatching
+            val snapshot = parseDataSnapshot(json)
+            snapshot.periods.forEach(cycleViewModel::savePeriod)
+            snapshot.events.forEach(viewModel::saveEvent)
+            snapshot.sexEntries.forEach(intimacyViewModel::saveSexEntry)
+            snapshot.proposalEntries.forEach(intimacyViewModel::saveProposalEntry)
+            snapshot.masturbationEntries.forEach(intimacyViewModel::saveMasturbationEntry)
+        }
+    }
+
+    // Turning reminders on requests POST_NOTIFICATIONS first -- setRemindersEnabled(true) only
+    // actually schedules the worker once CyclePreferences double-checks the permission is granted,
+    // but requesting it here (rather than leaving the toggle on with a silently no-op worker) is
+    // what makes the OS permission prompt appear at all.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cycleViewModel.setRemindersEnabled(granted)
+    }
+    val onRemindersEnabledChange: (Boolean) -> Unit = { enabled ->
+        if (enabled) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            cycleViewModel.setRemindersEnabled(false)
+        }
+    }
 
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -320,6 +378,7 @@ private fun CalendarScreenContent(
             sexEntries = intimacyState.sexEntries,
             proposalEntries = intimacyState.proposalEntries,
             masturbationEntries = intimacyState.masturbationEntries,
+            isIrregular = cycleState.stats.isIrregular,
             onClose = { showHistory = false },
             onOpenYearOverview = {
                 showHistory = false
@@ -354,6 +413,18 @@ private fun CalendarScreenContent(
             onPaletteChange = cycleViewModel::setPalette,
             suggestionsEnabled = cycleState.suggestionsEnabled,
             onSuggestionsEnabledChange = cycleViewModel::setSuggestionsEnabled,
+            themeMode = cycleState.themeMode,
+            onThemeModeChange = cycleViewModel::setThemeMode,
+            onExportData = {
+                haptics.perform(HapticEvent.Tap)
+                exportDataLauncher.launch("calendar-backup-${LocalDate.now()}.json")
+            },
+            onImportData = {
+                haptics.perform(HapticEvent.Tap)
+                importDataLauncher.launch(arrayOf("application/json"))
+            },
+            remindersEnabled = cycleState.remindersEnabled,
+            onRemindersEnabledChange = onRemindersEnabledChange,
             onClose = { showSettings = false }
         )
     }

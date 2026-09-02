@@ -53,6 +53,23 @@ enum class Palette(val label: String) {
 
 val LocalPalette = compositionLocalOf { Palette.WINE }
 
+/** Whether the app follows the system's light/dark setting or overrides it. */
+enum class ThemeMode(val label: String) {
+    SYSTEM("Как в системе"),
+    LIGHT("Светлая"),
+    DARK("Тёмная")
+}
+
+val LocalThemeMode = compositionLocalOf { ThemeMode.SYSTEM }
+
+/** Resolves this mode against the current system setting -- shared by [appColors] and the
+ *  Material3 baseline theme (see CalendarAppTheme) so both agree on light vs. dark. */
+fun ThemeMode.resolveDark(systemDark: Boolean): Boolean = when (this) {
+    ThemeMode.SYSTEM -> systemDark
+    ThemeMode.LIGHT -> false
+    ThemeMode.DARK -> true
+}
+
 private data class PaletteSkin(
     val accent: Color,
     val gradientTop: Color,
@@ -199,7 +216,7 @@ fun Palette.previewAccent(dark: Boolean): Color =
 @Composable
 fun appColors(): AppColors {
     val palette = LocalPalette.current
-    val dark = isSystemInDarkTheme()
+    val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
     val base = if (dark) DarkAppColors else LightAppColors
     val skin = (if (dark) DarkPaletteSkins else LightPaletteSkins).getValue(palette)
     return base.copy(

@@ -9,6 +9,7 @@ import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.settings.CyclePreferences
 import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.Palette
+import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 import com.koshg.calendar.util.computeCycleStats
@@ -32,12 +33,26 @@ data class CycleUiState(
     val phaseFillStyle: PhaseFillStyle = PhaseFillStyle.FILLED,
     val palette: Palette = Palette.WINE,
     val suggestionsEnabled: Boolean = true,
-    val suggestionDismissedUntilEpochDay: Long = 0L
+    val suggestionDismissedUntilEpochDay: Long = 0L,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val remindersEnabled: Boolean = false
 )
 
 /** The appearance/suggestion toggles bundled into one flow (below) so combining them with
  *  [repository.periods] and [lutealPhaseDays] doesn't need a >5-argument [combine] overload. */
 private data class DisplayPrefs(
+    val adaptiveTheme: Boolean,
+    val phaseFillStyle: PhaseFillStyle,
+    val palette: Palette,
+    val suggestionsEnabled: Boolean,
+    val suggestionDismissedUntilEpochDay: Long,
+    val themeMode: ThemeMode,
+    val remindersEnabled: Boolean
+)
+
+/** The first five toggles, pre-combined so adding [ThemeMode] on top only needs a 2-argument
+ *  [combine] rather than restructuring everything into a >5-argument overload. */
+private data class BaseDisplayPrefs(
     val adaptiveTheme: Boolean,
     val phaseFillStyle: PhaseFillStyle,
     val palette: Palette,
@@ -56,11 +71,25 @@ class CycleViewModel(
     private val palette = MutableStateFlow(preferences.palette)
     private val suggestionsEnabled = MutableStateFlow(preferences.suggestionsEnabled)
     private val suggestionDismissedUntilEpochDay = MutableStateFlow(preferences.suggestionDismissedUntilEpochDay)
+    private val themeMode = MutableStateFlow(preferences.themeMode)
+    private val remindersEnabled = MutableStateFlow(preferences.remindersEnabled)
 
-    private val displayPrefs = combine(
+    private val baseDisplayPrefs = combine(
         adaptiveTheme, phaseFillStyle, palette, suggestionsEnabled, suggestionDismissedUntilEpochDay
     ) { adaptive, fillStyle, pal, suggestionsOn, dismissedUntil ->
-        DisplayPrefs(adaptive, fillStyle, pal, suggestionsOn, dismissedUntil)
+        BaseDisplayPrefs(adaptive, fillStyle, pal, suggestionsOn, dismissedUntil)
+    }
+
+    private val displayPrefs = combine(baseDisplayPrefs, themeMode, remindersEnabled) { base, mode, remindersOn ->
+        DisplayPrefs(
+            base.adaptiveTheme,
+            base.phaseFillStyle,
+            base.palette,
+            base.suggestionsEnabled,
+            base.suggestionDismissedUntilEpochDay,
+            mode,
+            remindersOn
+        )
     }
 
     val uiState: StateFlow<CycleUiState> = combine(
@@ -74,7 +103,9 @@ class CycleViewModel(
             phaseFillStyle = prefs.phaseFillStyle,
             palette = prefs.palette,
             suggestionsEnabled = prefs.suggestionsEnabled,
-            suggestionDismissedUntilEpochDay = prefs.suggestionDismissedUntilEpochDay
+            suggestionDismissedUntilEpochDay = prefs.suggestionDismissedUntilEpochDay,
+            themeMode = prefs.themeMode,
+            remindersEnabled = prefs.remindersEnabled
         )
     }.stateIn(
         scope = viewModelScope,
@@ -85,7 +116,9 @@ class CycleViewModel(
             phaseFillStyle = preferences.phaseFillStyle,
             palette = preferences.palette,
             suggestionsEnabled = preferences.suggestionsEnabled,
-            suggestionDismissedUntilEpochDay = preferences.suggestionDismissedUntilEpochDay
+            suggestionDismissedUntilEpochDay = preferences.suggestionDismissedUntilEpochDay,
+            themeMode = preferences.themeMode,
+            remindersEnabled = preferences.remindersEnabled
         )
     )
 
@@ -121,6 +154,18 @@ class CycleViewModel(
     fun setSuggestionsEnabled(enabled: Boolean) {
         preferences.suggestionsEnabled = enabled
         suggestionsEnabled.value = enabled
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        preferences.themeMode = mode
+        themeMode.value = mode
+    }
+
+    /** The caller (Settings) is expected to have already secured the POST_NOTIFICATIONS permission
+     *  before passing `true` -- see [CyclePreferences.remindersEnabled] for the WorkManager sync. */
+    fun setRemindersEnabled(enabled: Boolean) {
+        preferences.remindersEnabled = enabled
+        remindersEnabled.value = enabled
     }
 
     /** Snoozes the suggestion banner for [SUGGESTION_SNOOZE_DAYS] regardless of which suggestion was showing. */

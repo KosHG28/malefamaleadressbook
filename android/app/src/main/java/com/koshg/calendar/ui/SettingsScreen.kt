@@ -17,6 +17,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -37,9 +39,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.security.AppLockPreferences
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.ui.theme.LocalThemeMode
 import com.koshg.calendar.ui.theme.Palette
+import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.previewAccent
+import com.koshg.calendar.ui.theme.resolveDark
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
 /** Sensible bounds for a user-supplied luteal-phase length -- outside this the ovulation estimate stops being meaningful. */
@@ -57,6 +62,12 @@ fun SettingsScreen(
     onPaletteChange: (Palette) -> Unit,
     suggestionsEnabled: Boolean,
     onSuggestionsEnabledChange: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onExportData: () -> Unit,
+    onImportData: () -> Unit,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -96,11 +107,15 @@ fun SettingsScreen(
                         adaptiveTheme = adaptiveTheme,
                         onAdaptiveThemeChange = onAdaptiveThemeChange,
                         phaseFillStyle = phaseFillStyle,
-                        onPhaseFillStyleChange = onPhaseFillStyleChange
+                        onPhaseFillStyleChange = onPhaseFillStyleChange,
+                        themeMode = themeMode,
+                        onThemeModeChange = onThemeModeChange
                     )
                 }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
                 item { SuggestionsSection(suggestionsEnabled, onSuggestionsEnabledChange) }
+                item { RemindersSection(remindersEnabled, onRemindersEnabledChange) }
+                item { DataSection(onExportData, onImportData) }
                 item { AboutSection() }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -146,7 +161,7 @@ private fun SecuritySection() {
 @Composable
 private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit) {
     val appColors = appColors()
-    val dark = isSystemInDarkTheme()
+    val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
     SectionCard(title = "Цветовая схема") {
         Text(
             "Акцент кнопок и фон календаря — цвета фаз не меняются",
@@ -234,10 +249,40 @@ private fun AppearanceSection(
     adaptiveTheme: Boolean,
     onAdaptiveThemeChange: (Boolean) -> Unit,
     phaseFillStyle: PhaseFillStyle,
-    onPhaseFillStyleChange: (PhaseFillStyle) -> Unit
+    onPhaseFillStyleChange: (PhaseFillStyle) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit
 ) {
     val appColors = appColors()
     SectionCard(title = "Оформление") {
+        Column {
+            Text(
+                "Тема",
+                style = MaterialTheme.typography.bodyMedium,
+                color = appColors.textPrimary
+            )
+            Spacer(Modifier.height(6.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                ThemeMode.entries.forEachIndexed { index, mode ->
+                    val isSelected = mode == themeMode
+                    SegmentedButton(
+                        selected = isSelected,
+                        onClick = { onThemeModeChange(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = ThemeMode.entries.size),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = appColors.accent,
+                            activeContentColor = Color.White,
+                            activeBorderColor = appColors.accent,
+                            inactiveContainerColor = Color.Transparent,
+                            inactiveContentColor = appColors.textPrimary,
+                            inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
+                        )
+                    ) {
+                        Text(mode.label, color = if (isSelected) Color.White else appColors.textPrimary)
+                    }
+                }
+            }
+        }
         Column {
             Text(
                 "Отображение фаз",
@@ -305,6 +350,55 @@ private fun SuggestionsSection(enabled: Boolean, onEnabledChange: (Boolean) -> U
                 )
             }
             Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        }
+    }
+}
+
+@Composable
+private fun RemindersSection(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+    val appColors = appColors()
+    SectionCard(title = "Уведомления") {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Напоминания цикла",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+                Text(
+                    "За 2 дня до ожидаемых месячных и в примерный день овуляции, по тому же прогнозу, " +
+                        "что и в календаре. Полностью локально, без сервера.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        }
+    }
+}
+
+@Composable
+private fun DataSection(onExport: () -> Unit, onImport: () -> Unit) {
+    val appColors = appColors()
+    SectionCard(title = "Данные") {
+        Text(
+            "Экспорт/импорт в файл — отдельно от системного бэкапа. Можно сохранить куда угодно, " +
+                "включая Google Drive, и перенести на другое устройство.",
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textSecondary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = onExport,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.accent)
+            ) { Text("Экспорт") }
+            OutlinedButton(
+                onClick = onImport,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.accent)
+            ) { Text("Импорт") }
         }
     }
 }
