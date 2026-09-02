@@ -54,11 +54,14 @@ private val LightAppColors = AppColors(
     warmSurface = Color(0xFFFFFDF9),
     gradientTop = Color(0xFFFFEFE1),
     gradientBottom = Color(0xFFFCE1EC),
-    menstrual = Color(0xFFE0536B),
-    follicular = Color(0xFF7C8CB8),
-    lhPeak = Color(0xFFE0B400),
-    ovulatory = Color(0xFF2F9DA6),
-    luteal = Color(0xFF8B5FBF),
+    // Brighter/more saturated than the dark-theme phase palette below -- the original shared
+    // values were tuned to pop against a near-black background and read as muddy/dark here
+    // against the pale cream/pink gradient, even with "vivid colors" on.
+    menstrual = Color(0xFFEF5D80),
+    follicular = Color(0xFF6E8FDB),
+    lhPeak = Color(0xFFFFC107),
+    ovulatory = Color(0xFF1FB8AC),
+    luteal = Color(0xFFA262E0),
     textPrimary = Color(0xFF2A211C),
     textSecondary = Color(0xFF8A7A6E),
     warning = Color(0xFFB8722B),
@@ -117,6 +120,20 @@ private const val MUTED_PHASE_DESATURATION = 0.35f
 fun AppColors.phaseColor(phase: CyclePhase, vivid: Boolean): Color {
     val base = colorFor(phase)
     return if (vivid) base else base.desaturated(MUTED_PHASE_DESATURATION)
+}
+
+/** The day-cell fill color for [phase] at [progress] through it (0 = the phase's first day, 1 =
+ *  its last), blended toward the *next* phase's color so adjacent days never jump abruptly at a
+ *  phase boundary -- a phase's last day already reads almost as the next phase's color, and that
+ *  next phase's first day (progress 0) continues from exactly there, same trick as
+ *  [adaptiveAccent]. LH_PEAK is a single day and stays pure rather than blending, since it's
+ *  meant to stand out as a spike, not a transition. Respects the vivid/muted choice like
+ *  [phaseColor]. */
+fun AppColors.blendedPhaseColor(phase: CyclePhase, progress: Float, vivid: Boolean): Color {
+    if (phase == CyclePhase.LH_PEAK) return phaseColor(phase, vivid)
+    val order = CyclePhase.entries
+    val next = order[(phase.ordinal + 1) % order.size]
+    return lerp(phaseColor(phase, vivid), phaseColor(next, vivid), progress.coerceIn(0f, 1f))
 }
 
 /** Slightly darker/lighter variant of this color, for a subtle within-run gradient across a

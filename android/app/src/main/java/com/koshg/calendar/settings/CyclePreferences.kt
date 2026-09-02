@@ -8,6 +8,16 @@ private const val KEY_LUTEAL_PHASE_DAYS = "luteal_phase_days"
 private const val KEY_ADAPTIVE_THEME = "adaptive_theme"
 private const val KEY_GRADIENT_DAY_FILL = "gradient_day_fill"
 private const val KEY_VIVID_COLORS = "vivid_colors"
+private const val KEY_PHASE_FILL_STYLE = "phase_fill_style"
+
+/** How a phase-colored day renders in the month grid. */
+enum class PhaseFillStyle {
+    /** Solid color, merged into one capsule across a contiguous same-phase run (current look). */
+    FILLED,
+
+    /** A dashed outline per day, no fill -- the older, lighter-weight look. */
+    DASHED
+}
 
 /** User-overridable cycle-model parameters and appearance toggles, persisted across launches. */
 class CyclePreferences(context: Context) {
@@ -31,4 +41,10 @@ class CyclePreferences(context: Context) {
     var vividColors: Boolean
         get() = prefs.getBoolean(KEY_VIVID_COLORS, false)
         set(value) = prefs.edit().putBoolean(KEY_VIVID_COLORS, value).apply()
+
+    var phaseFillStyle: PhaseFillStyle
+        get() = runCatching {
+            PhaseFillStyle.valueOf(prefs.getString(KEY_PHASE_FILL_STYLE, null) ?: "")
+        }.getOrDefault(PhaseFillStyle.FILLED)
+        set(value) = prefs.edit().putString(KEY_PHASE_FILL_STYLE, value.name).apply()
 }

@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,10 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.security.AppLockPreferences
+import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
@@ -39,6 +45,8 @@ fun SettingsScreen(
     onGradientDayFillChange: (Boolean) -> Unit,
     vividColors: Boolean,
     onVividColorsChange: (Boolean) -> Unit,
+    phaseFillStyle: PhaseFillStyle,
+    onPhaseFillStyleChange: (PhaseFillStyle) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -79,7 +87,9 @@ fun SettingsScreen(
                         gradientDayFill = gradientDayFill,
                         onGradientDayFillChange = onGradientDayFillChange,
                         vividColors = vividColors,
-                        onVividColorsChange = onVividColorsChange
+                        onVividColorsChange = onVividColorsChange,
+                        phaseFillStyle = phaseFillStyle,
+                        onPhaseFillStyleChange = onPhaseFillStyleChange
                     )
                 }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
@@ -122,6 +132,7 @@ private fun SecuritySection() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppearanceSection(
     adaptiveTheme: Boolean,
@@ -129,10 +140,43 @@ private fun AppearanceSection(
     gradientDayFill: Boolean,
     onGradientDayFillChange: (Boolean) -> Unit,
     vividColors: Boolean,
-    onVividColorsChange: (Boolean) -> Unit
+    onVividColorsChange: (Boolean) -> Unit,
+    phaseFillStyle: PhaseFillStyle,
+    onPhaseFillStyleChange: (PhaseFillStyle) -> Unit
 ) {
     val appColors = appColors()
     SectionCard(title = "Оформление") {
+        Column {
+            Text(
+                "Отображение фаз",
+                style = MaterialTheme.typography.bodyMedium,
+                color = appColors.textPrimary
+            )
+            Spacer(Modifier.height(6.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                PhaseFillStyle.entries.forEachIndexed { index, style ->
+                    val isSelected = style == phaseFillStyle
+                    SegmentedButton(
+                        selected = isSelected,
+                        onClick = { onPhaseFillStyleChange(style) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = PhaseFillStyle.entries.size),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = appColors.accent,
+                            activeContentColor = Color.White,
+                            activeBorderColor = appColors.accent,
+                            inactiveContainerColor = Color.Transparent,
+                            inactiveContentColor = appColors.textPrimary,
+                            inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
+                        )
+                    ) {
+                        Text(
+                            if (style == PhaseFillStyle.FILLED) "Заливка" else "Пунктир",
+                            color = if (isSelected) Color.White else appColors.textPrimary
+                        )
+                    }
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

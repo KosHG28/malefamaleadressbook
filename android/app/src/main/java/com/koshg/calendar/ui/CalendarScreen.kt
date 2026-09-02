@@ -29,10 +29,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawOutline
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.koshg.calendar.data.CalendarEvent
@@ -42,8 +48,10 @@ import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.adaptiveAccent
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.ui.theme.blendedPhaseColor
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.ui.theme.runGradientShade
 import com.koshg.calendar.util.CyclePhase
@@ -70,7 +78,7 @@ sealed interface ActiveSheet {
 
 internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED }
 
-private data class GridDayInfo(val date: LocalDate, val phase: CyclePhase?, val isFuture: Boolean)
+private data class GridDayInfo(val date: LocalDate, val phase: CyclePhase?, val phaseProgress: Float, val isFuture: Boolean)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -198,6 +206,7 @@ fun CalendarScreen(
                             lutealPhaseDays = cycleState.lutealPhaseDays,
                             gradientDayFill = cycleState.gradientDayFill,
                             vividColors = cycleState.vividColors,
+                            phaseFillStyle = cycleState.phaseFillStyle,
                             accentColor = dynamicAccent,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
@@ -256,6 +265,8 @@ fun CalendarScreen(
             onGradientDayFillChange = cycleViewModel::setGradientDayFill,
             vividColors = cycleState.vividColors,
             onVividColorsChange = cycleViewModel::setVividColors,
+            phaseFillStyle = cycleState.phaseFillStyle,
+            onPhaseFillStyleChange = cycleViewModel::setPhaseFillStyle,
             onClose = { showSettings = false }
         )
     }
@@ -560,6 +571,7 @@ private fun MonthGrid(
     lutealPhaseDays: Int,
     gradientDayFill: Boolean,
     vividColors: Boolean,
+    phaseFillStyle: PhaseFillStyle,
     accentColor: Color,
     sexByDate: Map<String, SexEntry>,
     proposalByDate: Map<String, ProposalEntry>,
@@ -580,7 +592,11 @@ private fun MonthGrid(
     val gridDays = remember(viewMonth, periods, marginDays, lutealPhaseDays) {
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
-            GridDayInfo(date, cyclePhaseFor(date, periods, marginDays, lutealPhaseDays), date.isAfter(today))
+            // A single walk gives both the phase and how far the date sits through it, which
+            // cyclePhaseFor alone wouldn't -- the progress feeds the cross-phase color blend
+            // below, so days never jump abruptly in color at a phase boundary.
+            val progress = cyclePhaseProgressFor(date, periods, marginDays, lutealPhaseDays)
+            GridDayInfo(date, progress?.first, progress?.second ?: 0f, date.isAfter(today))
         }
     }
 
@@ -622,9 +638,12 @@ private fun MonthGrid(
                     val prevInfo = if (idx > 0) gridDays[idx - 1] else null
                     val nextInfo = if (idx < gridDays.lastIndex) gridDays[idx + 1] else null
 
-                    val mergesWithPrev = prevInfo != null &&
+                    // "Dashed" style never merges across days -- each day is its own small
+                    // independent pill, closer to the older, lighter-weight look than the
+                    // solid-fill style's continuous same-phase capsule.
+                    val mergesWithPrev = phaseFillStyle == PhaseFillStyle.FILLED && prevInfo != null &&
                         info.phase != null && info.phase == prevInfo.phase
-                    val mergesWithNext = nextInfo != null &&
+                    val mergesWithNext = phaseFillStyle == PhaseFillStyle.FILLED && nextInfo != null &&
                         info.phase != null && info.phase == nextInfo.phase
 
                     if (dow > 0) {
@@ -646,11 +665,13 @@ private fun MonthGrid(
                         isSelected = info.date == selectedDate,
                         phase = info.phase,
                         isFuture = info.isFuture,
+                        phaseProgress = info.phaseProgress,
                         roundStart = !mergesWithPrev,
                         roundEnd = !mergesWithNext,
                         runFraction = runFractions[idx],
                         gradientFillEnabled = gradientDayFill,
                         vividColors = vividColors,
+                        phaseFillStyle = phaseFillStyle,
                         accentColor = accentColor,
                         hasOrgasm = dateKey in orgasmDates,
                         dayEvents = eventsByDate[dateKey].orEmpty(),
@@ -666,6 +687,26 @@ private fun MonthGrid(
     }
 }
 
+/** A dashed outline traced along [shape]'s own outline, no fill -- the "Пунктир" phase display
+ *  style, in place of the "Заливка" style's solid [Modifier.background]. */
+private fun Modifier.dashedOutline(
+    color: Color,
+    shape: Shape,
+    strokeWidth: Dp = 1.6.dp,
+    dash: Dp = 3.dp,
+    gap: Dp = 2.5.dp
+): Modifier = this.drawBehind {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    drawOutline(
+        outline = outline,
+        color = color,
+        style = Stroke(
+            width = strokeWidth.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash.toPx(), gap.toPx()), 0f)
+        )
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DayCell(
@@ -674,12 +715,14 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     phase: CyclePhase?,
+    phaseProgress: Float,
     isFuture: Boolean,
     roundStart: Boolean,
     roundEnd: Boolean,
     runFraction: Float,
     gradientFillEnabled: Boolean,
     vividColors: Boolean,
+    phaseFillStyle: PhaseFillStyle,
     accentColor: Color,
     hasOrgasm: Boolean,
     dayEvents: List<CalendarEvent>,
@@ -702,14 +745,16 @@ private fun DayCell(
     )
     val pillShape = RoundedCornerShape(percent = 50)
 
-    // "Gradient fill" shades a same-phase run darker at its start and lighter at its end (e.g.
-    // building toward ovulation), instead of one flat color across the whole run. Muted by
-    // default (appColors.phaseColor desaturates unless "vivid colors" is on) to cut down on how
-    // many loud, competing hues are on screen at once.
+    // The base color already blends smoothly toward the next phase's color as the day
+    // progresses through its own phase, so there's no hard jump at a phase boundary -- only
+    // "gradient fill" adds a further within-run darker-to-lighter build on top of that. Muted
+    // by default (appColors.phaseColor desaturates unless "vivid colors" is on) to cut down on
+    // how many loud, competing hues are on screen at once.
     val phaseColor = phase?.let {
-        val base = appColors.phaseColor(it, vividColors)
+        val base = appColors.blendedPhaseColor(it, phaseProgress, vividColors)
         if (gradientFillEnabled) base.runGradientShade(runFraction) else base
     }
+    val isDashed = phaseFillStyle == PhaseFillStyle.DASHED
     // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
     // since what's coming up is the whole point of a forecast calendar, while already-elapsed
     // days fade back a touch to keep the emphasis forward-looking.
@@ -717,14 +762,15 @@ private fun DayCell(
     val contentAlpha = monthAlpha * (if (isFuture) 1f else 0.6f)
 
     val textColor = when {
-        phaseColor != null -> Color.White
+        phaseColor != null && !isDashed -> Color.White
         else -> appColors.textPrimary
     }
 
     val cellModifier = when {
-        phaseColor != null -> Modifier
+        phaseColor != null && !isDashed -> Modifier
             .clip(runShape)
             .background(phaseColor.copy(alpha = contentAlpha))
+        phaseColor != null -> Modifier.dashedOutline(phaseColor.copy(alpha = contentAlpha), runShape)
         else -> Modifier
             .clip(pillShape)
             .background(appColors.warmSurface.copy(alpha = monthAlpha))
@@ -744,7 +790,7 @@ private fun DayCell(
                     .matchParentSize()
                     .border(
                         width = 2.dp,
-                        color = if (phaseColor != null) Color.White else accentColor,
+                        color = if (phaseColor != null && !isDashed) Color.White else accentColor,
                         shape = if (phaseColor != null) runShape else pillShape
                     )
             )
