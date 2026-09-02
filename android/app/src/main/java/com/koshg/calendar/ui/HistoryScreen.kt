@@ -27,6 +27,7 @@ import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.util.computeCorrelationInsights
 import com.koshg.calendar.util.monthShortLabel
 import com.koshg.calendar.util.shortDateLabel
 import com.koshg.calendar.util.toLocalDateOrNull
@@ -77,6 +78,7 @@ fun HistoryScreen(
                 item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
                 item { ProposalStatsSection(proposalEntries) }
                 item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
+                item { CorrelationInsightsSection(periods, sexEntries, proposalEntries) }
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
@@ -261,6 +263,34 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
                             .fillMaxHeight()
                             .background(appColors.proposalDeclined)
                     )
+                }
+            }
+        }
+    }
+}
+
+/** Simple, sample-size-gated phase-vs-initiative/acceptance patterns -- see [computeCorrelationInsights]. */
+@Composable
+private fun CorrelationInsightsSection(
+    periods: List<PeriodEntry>,
+    sexEntries: List<SexEntry>,
+    proposalEntries: List<ProposalEntry>
+) {
+    val appColors = appColors()
+    val insights = remember(periods, sexEntries, proposalEntries) {
+        computeCorrelationInsights(periods, sexEntries, proposalEntries)
+    }
+    SectionCard(title = "Корреляции") {
+        if (insights.sentences.isEmpty()) {
+            Text(
+                "Пока недостаточно записей, чтобы увидеть закономерности по фазам цикла.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = appColors.textSecondary
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                insights.sentences.forEach { sentence ->
+                    Text(sentence, style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
                 }
             }
         }

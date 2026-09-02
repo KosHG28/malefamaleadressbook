@@ -219,19 +219,8 @@ fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.LUTEAL -> luteal
 }
 
-/** Cheap desaturation: blends this color toward its own perceived gray by [amount] (0 = unchanged,
- *  1 = fully gray), which reads as a calmer/less saturated version at roughly the same lightness. */
-fun Color.desaturated(amount: Float): Color {
-    val gray = 0.299f * red + 0.587f * green + 0.114f * blue
-    return lerp(this, Color(gray, gray, gray, alpha), amount.coerceIn(0f, 1f))
-}
-
-/** How much [colorFor] is desaturated for the calendar fill -- a calmer, less "pestryy" grid
- *  than the fully-saturated phase hues read as. */
-private const val MUTED_PHASE_DESATURATION = 0.35f
-
-/** The phase color to actually paint the calendar with -- a desaturated variant of [colorFor]. */
-fun AppColors.phaseColor(phase: CyclePhase): Color = colorFor(phase).desaturated(MUTED_PHASE_DESATURATION)
+/** The phase color to actually paint the calendar with -- the full-saturation phase hue. */
+fun AppColors.phaseColor(phase: CyclePhase): Color = colorFor(phase)
 
 /** The day-cell fill color for [phase] at [progress] through it (0 = the phase's first day, 1 =
  *  its last), blended toward the *next* phase's color so adjacent days never jump abruptly at a

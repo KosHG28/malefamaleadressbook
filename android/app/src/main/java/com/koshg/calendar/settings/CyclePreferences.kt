@@ -9,6 +9,8 @@ private const val KEY_LUTEAL_PHASE_DAYS = "luteal_phase_days"
 private const val KEY_ADAPTIVE_THEME = "adaptive_theme"
 private const val KEY_PHASE_FILL_STYLE = "phase_fill_style"
 private const val KEY_PALETTE = "palette"
+private const val KEY_SUGGESTIONS_ENABLED = "suggestions_enabled"
+private const val KEY_SUGGESTION_DISMISSED_UNTIL = "suggestion_dismissed_until_epoch_day"
 
 /** How a phase-colored day renders in the month grid. */
 enum class PhaseFillStyle {
@@ -44,4 +46,14 @@ class CyclePreferences(context: Context) {
             Palette.valueOf(prefs.getString(KEY_PALETTE, null) ?: "")
         }.getOrDefault(Palette.WINE)
         set(value) = prefs.edit().putString(KEY_PALETTE, value.name).apply()
+
+    /** Whether the calendar screen may show a proactive, data-driven suggestion banner. */
+    var suggestionsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SUGGESTIONS_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_SUGGESTIONS_ENABLED, value).apply()
+
+    /** Epoch day until which the suggestion banner stays snoozed after the user dismisses it. */
+    var suggestionDismissedUntilEpochDay: Long
+        get() = prefs.getLong(KEY_SUGGESTION_DISMISSED_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_SUGGESTION_DISMISSED_UNTIL, value).apply()
 }

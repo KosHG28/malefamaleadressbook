@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+
+/** How many days a dismissed suggestion banner stays snoozed before it may reappear. */
+private const val SUGGESTION_SNOOZE_DAYS = 7L
 
 @Immutable
 data class CycleUiState(
@@ -26,15 +30,19 @@ data class CycleUiState(
     val lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS,
     val adaptiveTheme: Boolean = false,
     val phaseFillStyle: PhaseFillStyle = PhaseFillStyle.FILLED,
-    val palette: Palette = Palette.WINE
+    val palette: Palette = Palette.WINE,
+    val suggestionsEnabled: Boolean = true,
+    val suggestionDismissedUntilEpochDay: Long = 0L
 )
 
-/** The appearance toggles bundled into one flow (below) so combining them with [repository.periods]
- *  and [lutealPhaseDays] doesn't need a >5-argument [combine] overload. */
+/** The appearance/suggestion toggles bundled into one flow (below) so combining them with
+ *  [repository.periods] and [lutealPhaseDays] doesn't need a >5-argument [combine] overload. */
 private data class DisplayPrefs(
     val adaptiveTheme: Boolean,
     val phaseFillStyle: PhaseFillStyle,
-    val palette: Palette
+    val palette: Palette,
+    val suggestionsEnabled: Boolean,
+    val suggestionDismissedUntilEpochDay: Long
 )
 
 class CycleViewModel(
@@ -46,10 +54,14 @@ class CycleViewModel(
     private val adaptiveTheme = MutableStateFlow(preferences.adaptiveTheme)
     private val phaseFillStyle = MutableStateFlow(preferences.phaseFillStyle)
     private val palette = MutableStateFlow(preferences.palette)
+    private val suggestionsEnabled = MutableStateFlow(preferences.suggestionsEnabled)
+    private val suggestionDismissedUntilEpochDay = MutableStateFlow(preferences.suggestionDismissedUntilEpochDay)
 
     private val displayPrefs = combine(
-        adaptiveTheme, phaseFillStyle, palette
-    ) { adaptive, fillStyle, pal -> DisplayPrefs(adaptive, fillStyle, pal) }
+        adaptiveTheme, phaseFillStyle, palette, suggestionsEnabled, suggestionDismissedUntilEpochDay
+    ) { adaptive, fillStyle, pal, suggestionsOn, dismissedUntil ->
+        DisplayPrefs(adaptive, fillStyle, pal, suggestionsOn, dismissedUntil)
+    }
 
     val uiState: StateFlow<CycleUiState> = combine(
         repository.periods, lutealPhaseDays, displayPrefs
@@ -60,7 +72,9 @@ class CycleViewModel(
             lutealPhaseDays = luteal,
             adaptiveTheme = prefs.adaptiveTheme,
             phaseFillStyle = prefs.phaseFillStyle,
-            palette = prefs.palette
+            palette = prefs.palette,
+            suggestionsEnabled = prefs.suggestionsEnabled,
+            suggestionDismissedUntilEpochDay = prefs.suggestionDismissedUntilEpochDay
         )
     }.stateIn(
         scope = viewModelScope,
@@ -69,7 +83,9 @@ class CycleViewModel(
             lutealPhaseDays = preferences.lutealPhaseDays,
             adaptiveTheme = preferences.adaptiveTheme,
             phaseFillStyle = preferences.phaseFillStyle,
-            palette = preferences.palette
+            palette = preferences.palette,
+            suggestionsEnabled = preferences.suggestionsEnabled,
+            suggestionDismissedUntilEpochDay = preferences.suggestionDismissedUntilEpochDay
         )
     )
 
@@ -100,6 +116,18 @@ class CycleViewModel(
     fun setPalette(newPalette: Palette) {
         preferences.palette = newPalette
         palette.value = newPalette
+    }
+
+    fun setSuggestionsEnabled(enabled: Boolean) {
+        preferences.suggestionsEnabled = enabled
+        suggestionsEnabled.value = enabled
+    }
+
+    /** Snoozes the suggestion banner for [SUGGESTION_SNOOZE_DAYS] regardless of which suggestion was showing. */
+    fun dismissSuggestion() {
+        val until = LocalDate.now().plusDays(SUGGESTION_SNOOZE_DAYS).toEpochDay()
+        preferences.suggestionDismissedUntilEpochDay = until
+        suggestionDismissedUntilEpochDay.value = until
     }
 
     companion object {

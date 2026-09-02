@@ -14,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
@@ -55,7 +57,9 @@ import com.koshg.calendar.ui.theme.blendedPhaseColor
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
+import com.koshg.calendar.util.ProactiveSuggestion
 import com.koshg.calendar.util.WEEKDAY_SHORT_NAMES
+import com.koshg.calendar.util.computeProactiveSuggestion
 import com.koshg.calendar.util.cyclePhaseFor
 import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
@@ -240,6 +244,30 @@ private fun CalendarScreenContent(
 
                 PhaseLegend()
 
+                val proactiveSuggestion = remember(
+                    intimacyState.sexEntries,
+                    intimacyState.masturbationEntries,
+                    intimacyState.proposalEntries,
+                    cycleState.suggestionsEnabled,
+                    cycleState.suggestionDismissedUntilEpochDay
+                ) {
+                    when {
+                        !cycleState.suggestionsEnabled -> null
+                        LocalDate.now().toEpochDay() < cycleState.suggestionDismissedUntilEpochDay -> null
+                        else -> computeProactiveSuggestion(
+                            intimacyState.sexEntries,
+                            intimacyState.masturbationEntries,
+                            intimacyState.proposalEntries
+                        )
+                    }
+                }
+                if (proactiveSuggestion != null) {
+                    SuggestionBanner(
+                        suggestion = proactiveSuggestion,
+                        onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
+                    )
+                }
+
                 DayAgendaPanel(
                     selectedDate = uiState.selectedDate,
                     events = uiState.selectedDateEvents,
@@ -278,6 +306,8 @@ private fun CalendarScreenContent(
             onPhaseFillStyleChange = cycleViewModel::setPhaseFillStyle,
             palette = cycleState.palette,
             onPaletteChange = cycleViewModel::setPalette,
+            suggestionsEnabled = cycleState.suggestionsEnabled,
+            onSuggestionsEnabledChange = cycleViewModel::setSuggestionsEnabled,
             onClose = { showSettings = false }
         )
     }
@@ -567,6 +597,50 @@ private fun PhaseLegend() {
                     }
                 }
             }
+        }
+    }
+}
+
+/** A dismissible, non-alarming nudge card -- see [computeProactiveSuggestion] for the triggers. */
+@Composable
+private fun SuggestionBanner(suggestion: ProactiveSuggestion, onDismiss: () -> Unit) {
+    val appColors = appColors()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(appColors.warmSurface.copy(alpha = 0.65f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            Icons.Default.Spa,
+            contentDescription = null,
+            tint = appColors.accent,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                suggestion.title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = appColors.textPrimary
+            )
+            Text(
+                suggestion.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = appColors.textSecondary
+            )
+        }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(20.dp)) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Скрыть подсказку",
+                tint = appColors.textSecondary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

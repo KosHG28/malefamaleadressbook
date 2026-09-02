@@ -53,6 +53,8 @@ fun SettingsScreen(
     onPhaseFillStyleChange: (PhaseFillStyle) -> Unit,
     palette: Palette,
     onPaletteChange: (Palette) -> Unit,
+    suggestionsEnabled: Boolean,
+    onSuggestionsEnabledChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -96,6 +98,7 @@ fun SettingsScreen(
                     )
                 }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
+                item { SuggestionsSection(suggestionsEnabled, onSuggestionsEnabledChange) }
                 item { AboutSection() }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -243,6 +246,28 @@ private fun AppearanceSection(
                 )
             }
             Switch(checked = adaptiveTheme, onCheckedChange = onAdaptiveThemeChange)
+        }
+    }
+}
+
+@Composable
+private fun SuggestionsSection(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+    val appColors = appColors()
+    SectionCard(title = "Подсказки") {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Идеи для вечера",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+                Text(
+                    "Ненавязчивая подсказка на календаре при долгом перерыве или частой усталости в отказах",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
         }
     }
 }
