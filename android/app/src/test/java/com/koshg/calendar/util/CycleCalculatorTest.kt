@@ -103,7 +103,7 @@ class CycleCalculatorTest {
         // With one period and no history, the forecast falls back to the 29-day default and the
         // luteal length to its own 13-day default:
         //   cycleStart = Jan 1, nextPeriodStart = Jan 30 (Jan 1 + 29)
-        //   periodEnd = Jan 6 (Jan 1 + 5), ovulation = Jan 17 (Jan 30 - 13), lhPeak = Jan 16
+        //   periodEnd = Jan 6 (Jan 1 + 5), ovulation = Jan 17 (Jan 30 - 13)
         //   fertileStart = Jan 12, fertileEnd = Jan 18
         val periods = listOf(period(LocalDate.of(2026, 1, 1)))
 
@@ -112,7 +112,8 @@ class CycleCalculatorTest {
         assertEquals(CyclePhase.FOLLICULAR, cyclePhaseFor(LocalDate.of(2026, 1, 6), periods))
         assertEquals(CyclePhase.FOLLICULAR, cyclePhaseFor(LocalDate.of(2026, 1, 11), periods))
         assertEquals(CyclePhase.OVULATORY, cyclePhaseFor(LocalDate.of(2026, 1, 12), periods))
-        assertEquals(CyclePhase.LH_PEAK, cyclePhaseFor(LocalDate.of(2026, 1, 16), periods))
+        assertEquals(CyclePhase.OVULATORY, cyclePhaseFor(LocalDate.of(2026, 1, 16), periods))
+        assertEquals(CyclePhase.OVULATORY, cyclePhaseFor(LocalDate.of(2026, 1, 17), periods))
         assertEquals(CyclePhase.OVULATORY, cyclePhaseFor(LocalDate.of(2026, 1, 18), periods))
         assertEquals(CyclePhase.LUTEAL, cyclePhaseFor(LocalDate.of(2026, 1, 19), periods))
         assertEquals(CyclePhase.LUTEAL, cyclePhaseFor(LocalDate.of(2026, 1, 29), periods))
@@ -121,5 +122,21 @@ class CycleCalculatorTest {
     @Test
     fun `cyclePhaseFor returns null with no period history`() {
         assertNull(cyclePhaseFor(LocalDate.of(2026, 1, 1), emptyList()))
+    }
+
+    @Test
+    fun `ovulationDateFor marks the single actual predicted ovulation day, not the day before it`() {
+        // Same window as above: ovulation = Jan 17. UI marks a day as "the" ovulation day exactly
+        // when it equals this -- so Jan 17 should match, and its neighbors should not.
+        val periods = listOf(period(LocalDate.of(2026, 1, 1)))
+
+        assertTrue(LocalDate.of(2026, 1, 17) == ovulationDateFor(LocalDate.of(2026, 1, 17), periods))
+        assertFalse(LocalDate.of(2026, 1, 16) == ovulationDateFor(LocalDate.of(2026, 1, 16), periods))
+        assertFalse(LocalDate.of(2026, 1, 18) == ovulationDateFor(LocalDate.of(2026, 1, 18), periods))
+    }
+
+    @Test
+    fun `ovulationDateFor returns null with no period history`() {
+        assertNull(ovulationDateFor(LocalDate.of(2026, 1, 1), emptyList()))
     }
 }

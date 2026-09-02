@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Calendar"
+rootProject.name = "Interlude"
 include(":app")

@@ -1,6 +1,9 @@
 package com.koshg.calendar.ui
 
 import android.app.DatePickerDialog
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,9 +49,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -242,6 +249,7 @@ private fun DialogBackgroundBlur(radiusPx: Int = 90) {
 fun UnifiedAddSheet(
     initialType: AddType,
     initialDate: LocalDate,
+    fabOrigin: Offset = Offset.Unspecified,
     onDismiss: () -> Unit,
     onSavePeriod: (PeriodEntry) -> Unit,
     onSaveSex: (SexEntry) -> Unit,
@@ -263,6 +271,37 @@ fun UnifiedAddSheet(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         DialogBackgroundBlur()
         val maxCardHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+
+        // The card doesn't just fade in centered -- it grows out from wherever the FAB sits on
+        // screen, echoing the "+" morphing into the form itself. The card's own final bounds
+        // aren't known until after layout, so this approximates its landing center as the
+        // screen's center (true for this fillMaxSize, center-aligned Box) rather than chasing
+        // exact coordinates -- plenty convincing for a launch animation, far more robust than a
+        // real shared-element transform.
+        val density = LocalDensity.current
+        val configuration = LocalConfiguration.current
+        val morphOrigin = if (fabOrigin.isSpecified) {
+            val screenCenterPx = with(density) {
+                Offset(
+                    x = (configuration.screenWidthDp.dp / 2).toPx(),
+                    y = (configuration.screenHeightDp.dp / 2).toPx()
+                )
+            }
+            fabOrigin - screenCenterPx
+        } else {
+            Offset.Zero
+        }
+        val morphProgress = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            morphProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -273,6 +312,15 @@ fun UnifiedAddSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = maxCardHeight)
+                    .graphicsLayer {
+                        val t = morphProgress.value
+                        val scale = 0.15f + 0.85f * t
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = t.coerceIn(0f, 1f)
+                        translationX = morphOrigin.x * (1f - t)
+                        translationY = morphOrigin.y * (1f - t)
+                    }
                     .shadow(elevation = 24.dp, shape = RoundedCornerShape(28.dp))
                     .clip(RoundedCornerShape(28.dp))
                     .background(appColors.warmSurface)

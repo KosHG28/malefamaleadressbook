@@ -26,7 +26,6 @@ data class AppColors(
     val gradientBottom: Color,
     val menstrual: Color,
     val follicular: Color,
-    val lhPeak: Color,
     val ovulatory: Color,
     val luteal: Color,
     /** Explicit, theme-guaranteed text colors for content drawn on the gradient/warm surfaces —
@@ -55,7 +54,9 @@ val LocalPalette = compositionLocalOf { Palette.WINE }
 
 /** Whether the app follows the system's light/dark setting or overrides it. */
 enum class ThemeMode(val label: String) {
-    SYSTEM("Как в системе"),
+    // "Система" (not the longer "Как в системе") deliberately matches the other two labels'
+    // length so all three segments stay single-line in the settings row at normal font scale.
+    SYSTEM("Система"),
     LIGHT("Светлая"),
     DARK("Тёмная")
 }
@@ -173,7 +174,6 @@ private val LightAppColors = AppColors(
     gradientBottom = Color(0xFFFCE1EC),
     menstrual = Color(0xFFEF5D80),
     follicular = Color(0xFF6E8FDB),
-    lhPeak = Color(0xFFFFC107),
     ovulatory = Color(0xFF1FB8AC),
     luteal = Color(0xFFA262E0),
     textPrimary = Color(0xFF2A211C),
@@ -199,7 +199,6 @@ private val DarkAppColors = AppColors(
     gradientBottom = Color(0xFF120D0B),
     menstrual = Color(0xFFE0536B),
     follicular = Color(0xFF7C8CB8),
-    lhPeak = Color(0xFFF7CB45),
     ovulatory = Color(0xFF2F9DA6),
     luteal = Color(0xFF8B5FBF),
     textPrimary = Color(0xFFF5EDE8),
@@ -231,7 +230,6 @@ fun appColors(): AppColors {
 fun AppColors.colorFor(phase: CyclePhase): Color = when (phase) {
     CyclePhase.MENSTRUAL -> menstrual
     CyclePhase.FOLLICULAR -> follicular
-    CyclePhase.LH_PEAK -> lhPeak
     CyclePhase.OVULATORY -> ovulatory
     CyclePhase.LUTEAL -> luteal
 }
@@ -251,6 +249,5 @@ private fun AppColors.colorForNext(phase: CyclePhase): Color {
 fun AppColors.adaptiveAccent(todayPhaseProgress: Pair<CyclePhase, Float>?): Color {
     if (todayPhaseProgress == null) return accent
     val (phase, fraction) = todayPhaseProgress
-    if (phase == CyclePhase.LH_PEAK) return lhPeak
     return lerp(colorFor(phase), colorForNext(phase), fraction.coerceIn(0f, 1f))
 }

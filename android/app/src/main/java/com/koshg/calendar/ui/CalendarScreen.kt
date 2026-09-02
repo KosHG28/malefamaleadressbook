@@ -3,8 +3,12 @@ package com.koshg.calendar.ui
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,6 +22,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,11 +32,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -46,10 +54,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,6 +76,7 @@ import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.data.parseDataSnapshot
 import com.koshg.calendar.data.toExportJson
 import com.koshg.calendar.haptics.HapticEvent
+import com.koshg.calendar.haptics.Haptics
 import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.LocalPalette
@@ -78,6 +90,7 @@ import com.koshg.calendar.util.ProactiveSuggestion
 import com.koshg.calendar.util.WEEKDAY_SHORT_NAMES
 import com.koshg.calendar.util.computeProactiveSuggestion
 import com.koshg.calendar.util.cyclePhaseFor
+import com.koshg.calendar.util.ovulationDateFor
 import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
 import java.time.LocalDate
@@ -98,7 +111,12 @@ sealed interface ActiveSheet {
 
 internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED }
 
-private data class GridDayInfo(val date: LocalDate, val phase: CyclePhase?, val isFuture: Boolean)
+private data class GridDayInfo(
+    val date: LocalDate,
+    val phase: CyclePhase?,
+    val isFuture: Boolean,
+    val isOvulationDay: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,6 +202,9 @@ private fun CalendarScreenContent(
     var showSettings by remember { mutableStateOf(false) }
     var showYearOverview by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
+    // Captured from the FAB's own layout so the add-entry dialog can grow out from wherever the
+    // "+" actually sits on screen instead of just appearing centered.
+    var fabOrigin by remember { mutableStateOf(Offset.Unspecified) }
 
     val periodByDate = remember(cycleState.periods) { cycleState.periods.associateBy { it.startDate } }
     val sexByDate = remember(intimacyState.sexEntries) { intimacyState.sexEntries.associateBy { it.date } }
@@ -191,9 +212,23 @@ private fun CalendarScreenContent(
     val masturbationDates = remember(intimacyState.masturbationEntries) {
         intimacyState.masturbationEntries.map { it.date }.toSet()
     }
-    val orgasmDates = remember(intimacyState.sexEntries, intimacyState.masturbationEntries) {
-        (intimacyState.sexEntries.filter { it.orgasmCount > 0 }.map { it.date } +
-            intimacyState.masturbationEntries.filter { it.orgasmCount > 0 }.map { it.date }).toSet()
+    // Only sex entries get the star -- masturbation's own orgasm count is already visible via its
+    // marker ring and the day-agenda row, and doesn't need the same calendar-wide star treatment.
+    val orgasmDates = remember(intimacyState.sexEntries) {
+        intimacyState.sexEntries.filter { it.orgasmCount > 0 }.map { it.date }.toSet()
+    }
+
+    // The FAB guesses intent from the selected day rather than always showing a plain "+":
+    // a droplet flags a day with no period entry yet whose start is the model's own next-period
+    // prediction, since that's the single most likely thing the user is about to log there.
+    val selectedDateKey = uiState.selectedDate.toString()
+    val isPredictedPeriodStartDay = !periodByDate.containsKey(selectedDateKey) &&
+        cycleState.stats.predictedNextPeriod == uiState.selectedDate
+    val fabIcon = if (isPredictedPeriodStartDay) Icons.Default.WaterDrop else Icons.Default.Add
+    val fabContentDescription = if (isPredictedPeriodStartDay) {
+        "Добавить: прогнозируется начало месячных"
+    } else {
+        "Добавить"
     }
 
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
@@ -224,150 +259,105 @@ private fun CalendarScreenContent(
                     containerColor = dynamicAccent,
                     contentColor = Color.White,
                     interactionSource = fabInteractionSource,
-                    modifier = Modifier.scale(fabScale)
+                    modifier = Modifier
+                        .scale(fabScale)
+                        .onGloballyPositioned { fabOrigin = it.boundsInRoot().center }
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Добавить")
+                    AnimatedContent(targetState = fabIcon, label = "fabIcon") { icon ->
+                        Icon(icon, contentDescription = fabContentDescription)
+                    }
                 }
             }
         ) { padding ->
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .padding(padding)
                     .fillMaxSize()
             ) {
-                CalendarHeader(
-                    stats = cycleState.stats,
-                    todayPhase = cyclePhaseFor(
-                        LocalDate.now(),
-                        cycleState.periods,
-                        cycleState.stats.appliedMarginDays,
-                        cycleState.lutealPhaseDays
-                    ),
-                    onToday = { haptics.perform(HapticEvent.Tap); viewModel.goToToday() },
-                    onOpenHistory = {
-                        haptics.perform(HapticEvent.Tap)
-                        showHistory = true
-                    },
-                    onOpenSettings = {
-                        haptics.perform(HapticEvent.Tap)
-                        showSettings = true
-                    }
-                )
-
-                val baseMonth = remember { YearMonth.now() }
-                val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
-                val pagerCenterPage = pagerPageCount / 2
-                val pagerState = rememberPagerState(
-                    initialPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
-                ) { pagerPageCount }
-
-                LaunchedEffect(pagerState.currentPage) {
-                    val swipedToMonth = baseMonth.plusMonths((pagerState.currentPage - pagerCenterPage).toLong())
-                    // This only differs from the current view month on a genuine user swipe --
-                    // a chevron-driven change already lands here with swipedToMonth already
-                    // matching (the other LaunchedEffect below just animates the pager to catch
-                    // up), so a haptic here never doubles up with the chevron's own tap.
-                    if (swipedToMonth != uiState.viewMonth) {
-                        haptics.perform(HapticEvent.Tap)
-                        viewModel.setViewMonth(swipedToMonth)
-                    }
-                }
-                LaunchedEffect(uiState.viewMonth) {
-                    val targetPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
-                    if (pagerState.currentPage != targetPage) {
-                        pagerState.animateScrollToPage(targetPage)
-                    }
+                val widthClass = windowWidthClassOf(maxWidth.value.toInt())
+                val agendaPanel: @Composable (Modifier) -> Unit = { agendaModifier ->
+                    DayAgendaPanel(
+                        selectedDate = uiState.selectedDate,
+                        events = uiState.selectedDateEvents,
+                        periodEntry = periodByDate[uiState.selectedDate.toString()],
+                        sexEntry = sexByDate[uiState.selectedDate.toString()],
+                        proposalEntry = proposalByDate[uiState.selectedDate.toString()],
+                        masturbationEntries = intimacyState.masturbationEntries.filter { it.date == uiState.selectedDate.toString() },
+                        onEventClick = { activeSheet = ActiveSheet.Event(it, uiState.selectedDate) },
+                        onPeriodClick = { activeSheet = ActiveSheet.Period(it, uiState.selectedDate) },
+                        onSexClick = { activeSheet = ActiveSheet.Sex(it, uiState.selectedDate) },
+                        onProposalClick = { activeSheet = ActiveSheet.Proposal(it, uiState.selectedDate) },
+                        onMasturbationClick = { activeSheet = ActiveSheet.Masturbation(it, uiState.selectedDate) },
+                        modifier = agendaModifier
+                    )
                 }
 
-                HorizontalPager(state = pagerState) { page ->
-                    val month = baseMonth.plusMonths((page - pagerCenterPage).toLong())
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        MonthNav(
-                            monthLabel = monthYearLabel(month.atDay(1)),
-                            onPrev = { haptics.perform(HapticEvent.Tap); viewModel.goToPreviousMonth() },
-                            onNext = { haptics.perform(HapticEvent.Tap); viewModel.goToNextMonth() }
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        WeekdayHeader()
-                        MonthGrid(
-                            viewMonth = month,
-                            selectedDate = uiState.selectedDate,
-                            eventsByDate = uiState.eventsByDate,
-                            periods = cycleState.periods,
-                            marginDays = cycleState.stats.appliedMarginDays,
-                            lutealPhaseDays = cycleState.lutealPhaseDays,
-                            phaseFillStyle = cycleState.phaseFillStyle,
-                            accentColor = dynamicAccent,
+                Column(modifier = Modifier.fillMaxSize()) {
+                    CalendarHeader(
+                        stats = cycleState.stats,
+                        todayPhase = cyclePhaseFor(
+                            LocalDate.now(),
+                            cycleState.periods,
+                            cycleState.stats.appliedMarginDays,
+                            cycleState.lutealPhaseDays
+                        ),
+                        onToday = { haptics.perform(HapticEvent.Tap); viewModel.goToToday() },
+                        onOpenHistory = {
+                            haptics.perform(HapticEvent.Tap)
+                            showHistory = true
+                        },
+                        onOpenSettings = {
+                            haptics.perform(HapticEvent.Tap)
+                            showSettings = true
+                        }
+                    )
+
+                    if (widthClass == WindowWidthClass.COMPACT) {
+                        // A phone, folded or not -- the month grid and the selected day's agenda
+                        // stack vertically exactly as before, agenda taking whatever's left.
+                        CalendarMonthSection(
+                            viewModel = viewModel,
+                            cycleViewModel = cycleViewModel,
+                            uiState = uiState,
+                            cycleState = cycleState,
+                            intimacyState = intimacyState,
+                            dynamicAccent = dynamicAccent,
                             sexByDate = sexByDate,
                             proposalByDate = proposalByDate,
                             masturbationDates = masturbationDates,
                             orgasmDates = orgasmDates,
-                            onDayClick = { date ->
-                                haptics.perform(HapticEvent.Tap)
-                                viewModel.selectDate(date)
-                            },
-                            onDayLongClick = { date ->
-                                haptics.perform(HapticEvent.Select)
-                                viewModel.selectDate(date)
-                                activeSheet = ActiveSheet.New(date)
-                            }
+                            haptics = haptics,
+                            onNewEntry = { activeSheet = ActiveSheet.New(it) }
                         )
+                        agendaPanel(Modifier.weight(1f))
+                    } else {
+                        // An unfolded Fold or a tablet: width to spare, so the grid and the
+                        // selected day's agenda sit side by side instead of stacked -- switching
+                        // days no longer means scrolling away from the calendar to see it.
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            CalendarMonthSection(
+                                viewModel = viewModel,
+                                cycleViewModel = cycleViewModel,
+                                uiState = uiState,
+                                cycleState = cycleState,
+                                intimacyState = intimacyState,
+                                dynamicAccent = dynamicAccent,
+                                sexByDate = sexByDate,
+                                proposalByDate = proposalByDate,
+                                masturbationDates = masturbationDates,
+                                orgasmDates = orgasmDates,
+                                haptics = haptics,
+                                onNewEntry = { activeSheet = ActiveSheet.New(it) },
+                                modifier = Modifier
+                                    .weight(0.55f)
+                                    .fillMaxHeight()
+                                    .widthIn(max = 480.dp)
+                                    .verticalScroll(rememberScrollState())
+                            )
+                            agendaPanel(Modifier.weight(0.45f).fillMaxHeight())
+                        }
                     }
                 }
-
-                PhaseLegend()
-
-                val proactiveSuggestion = remember(
-                    intimacyState.sexEntries,
-                    intimacyState.masturbationEntries,
-                    intimacyState.proposalEntries,
-                    cycleState.suggestionsEnabled,
-                    cycleState.suggestionDismissedUntilEpochDay
-                ) {
-                    when {
-                        !cycleState.suggestionsEnabled -> null
-                        LocalDate.now().toEpochDay() < cycleState.suggestionDismissedUntilEpochDay -> null
-                        else -> computeProactiveSuggestion(
-                            intimacyState.sexEntries,
-                            intimacyState.masturbationEntries,
-                            intimacyState.proposalEntries
-                        )
-                    }
-                }
-                // Keeps rendering the last non-null suggestion while AnimatedVisibility shrinks it
-                // away, since proactiveSuggestion itself already flips to null the moment
-                // visible does -- without this the banner would vanish instantly instead of
-                // collapsing.
-                val displayedSuggestion = remember { mutableStateOf<ProactiveSuggestion?>(null) }
-                if (proactiveSuggestion != null) displayedSuggestion.value = proactiveSuggestion
-
-                AnimatedVisibility(
-                    visible = proactiveSuggestion != null,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    displayedSuggestion.value?.let { suggestion ->
-                        SuggestionBanner(
-                            suggestion = suggestion,
-                            onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
-                        )
-                    }
-                }
-
-                DayAgendaPanel(
-                    selectedDate = uiState.selectedDate,
-                    events = uiState.selectedDateEvents,
-                    periodEntry = periodByDate[uiState.selectedDate.toString()],
-                    sexEntry = sexByDate[uiState.selectedDate.toString()],
-                    proposalEntry = proposalByDate[uiState.selectedDate.toString()],
-                    masturbationEntries = intimacyState.masturbationEntries.filter { it.date == uiState.selectedDate.toString() },
-                    onEventClick = { activeSheet = ActiveSheet.Event(it, uiState.selectedDate) },
-                    onPeriodClick = { activeSheet = ActiveSheet.Period(it, uiState.selectedDate) },
-                    onSexClick = { activeSheet = ActiveSheet.Sex(it, uiState.selectedDate) },
-                    onProposalClick = { activeSheet = ActiveSheet.Proposal(it, uiState.selectedDate) },
-                    onMasturbationClick = { activeSheet = ActiveSheet.Masturbation(it, uiState.selectedDate) },
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
     }
@@ -523,6 +513,7 @@ private fun CalendarScreenContent(
         is ActiveSheet.New -> UnifiedAddSheet(
             initialType = AddType.Period,
             initialDate = sheet.date,
+            fabOrigin = fabOrigin,
             onDismiss = { activeSheet = null },
             onSavePeriod = {
                 haptics.perform(HapticEvent.LogEntry)
@@ -550,6 +541,131 @@ private fun CalendarScreenContent(
     }
 }
 
+/**
+ * The month pager/grid, phase legend and proactive-suggestion banner -- everything above the
+ * selected day's agenda. Pulled out of [CalendarScreenContent] so it can be placed either above
+ * [DayAgendaPanel] (stacked, on a phone) or beside it (two-pane, on an unfolded Fold or tablet)
+ * without duplicating the pager/grid wiring for each layout.
+ */
+@Composable
+private fun CalendarMonthSection(
+    viewModel: CalendarViewModel,
+    cycleViewModel: CycleViewModel,
+    uiState: CalendarUiState,
+    cycleState: CycleUiState,
+    intimacyState: IntimacyUiState,
+    dynamicAccent: Color,
+    sexByDate: Map<String, SexEntry>,
+    proposalByDate: Map<String, ProposalEntry>,
+    masturbationDates: Set<String>,
+    orgasmDates: Set<String>,
+    haptics: Haptics,
+    onNewEntry: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        val baseMonth = remember { YearMonth.now() }
+        val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
+        val pagerCenterPage = pagerPageCount / 2
+        val pagerState = rememberPagerState(
+            initialPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
+        ) { pagerPageCount }
+
+        LaunchedEffect(pagerState.currentPage) {
+            val swipedToMonth = baseMonth.plusMonths((pagerState.currentPage - pagerCenterPage).toLong())
+            // This only differs from the current view month on a genuine user swipe --
+            // a chevron-driven change already lands here with swipedToMonth already
+            // matching (the other LaunchedEffect below just animates the pager to catch
+            // up), so a haptic here never doubles up with the chevron's own tap.
+            if (swipedToMonth != uiState.viewMonth) {
+                haptics.perform(HapticEvent.Tap)
+                viewModel.setViewMonth(swipedToMonth)
+            }
+        }
+        LaunchedEffect(uiState.viewMonth) {
+            val targetPage = pagerCenterPage + ChronoUnit.MONTHS.between(baseMonth, uiState.viewMonth).toInt()
+            if (pagerState.currentPage != targetPage) {
+                pagerState.animateScrollToPage(targetPage)
+            }
+        }
+
+        HorizontalPager(state = pagerState) { page ->
+            val month = baseMonth.plusMonths((page - pagerCenterPage).toLong())
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                MonthNav(
+                    monthLabel = monthYearLabel(month.atDay(1)),
+                    onPrev = { haptics.perform(HapticEvent.Tap); viewModel.goToPreviousMonth() },
+                    onNext = { haptics.perform(HapticEvent.Tap); viewModel.goToNextMonth() }
+                )
+                Spacer(Modifier.height(8.dp))
+                WeekdayHeader()
+                MonthGrid(
+                    viewMonth = month,
+                    selectedDate = uiState.selectedDate,
+                    eventsByDate = uiState.eventsByDate,
+                    periods = cycleState.periods,
+                    marginDays = cycleState.stats.appliedMarginDays,
+                    lutealPhaseDays = cycleState.lutealPhaseDays,
+                    phaseFillStyle = cycleState.phaseFillStyle,
+                    accentColor = dynamicAccent,
+                    sexByDate = sexByDate,
+                    proposalByDate = proposalByDate,
+                    masturbationDates = masturbationDates,
+                    orgasmDates = orgasmDates,
+                    onDayClick = { date ->
+                        haptics.perform(HapticEvent.Tap)
+                        viewModel.selectDate(date)
+                    },
+                    onDayLongClick = { date ->
+                        haptics.perform(HapticEvent.Select)
+                        viewModel.selectDate(date)
+                        onNewEntry(date)
+                    }
+                )
+            }
+        }
+
+        PhaseLegend()
+
+        val proactiveSuggestion = remember(
+            intimacyState.sexEntries,
+            intimacyState.masturbationEntries,
+            intimacyState.proposalEntries,
+            cycleState.suggestionsEnabled,
+            cycleState.suggestionDismissedUntilEpochDay
+        ) {
+            when {
+                !cycleState.suggestionsEnabled -> null
+                LocalDate.now().toEpochDay() < cycleState.suggestionDismissedUntilEpochDay -> null
+                else -> computeProactiveSuggestion(
+                    intimacyState.sexEntries,
+                    intimacyState.masturbationEntries,
+                    intimacyState.proposalEntries
+                )
+            }
+        }
+        // Keeps rendering the last non-null suggestion while AnimatedVisibility shrinks it
+        // away, since proactiveSuggestion itself already flips to null the moment
+        // visible does -- without this the banner would vanish instantly instead of
+        // collapsing.
+        val displayedSuggestion = remember { mutableStateOf<ProactiveSuggestion?>(null) }
+        if (proactiveSuggestion != null) displayedSuggestion.value = proactiveSuggestion
+
+        AnimatedVisibility(
+            visible = proactiveSuggestion != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            displayedSuggestion.value?.let { suggestion ->
+                SuggestionBanner(
+                    suggestion = suggestion,
+                    onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CalendarHeader(
     stats: CycleStats,
@@ -571,7 +687,7 @@ private fun CalendarHeader(
                 Icon(Icons.Default.History, contentDescription = "История и тренды", tint = appColors.textSecondary)
             }
             Text(
-                text = "КАЛЕНДАРЬ",
+                text = "INTERLUDE",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
@@ -686,9 +802,8 @@ private fun PhaseLegend() {
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Row-major 2-column grid, each cell equal-width, so dots and labels line up on a
-        // consistent grid regardless of how long each phase's name is -- a single scrolling
-        // row with fixed gaps looked uneven once "Пик ЛГ" joined the four longer names.
+        // Row-major 2-column grid (2x2 for the four phases), each cell equal-width, so dots and
+        // labels line up on a consistent grid regardless of how long each phase's name is.
         CyclePhase.entries.chunked(2).forEach { rowPhases ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 rowPhases.forEach { phase ->
@@ -794,7 +909,8 @@ private fun MonthGrid(
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
             val phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays)
-            GridDayInfo(date, phase, date.isAfter(today))
+            val isOvulationDay = date == ovulationDateFor(date, periods, lutealPhaseDays)
+            GridDayInfo(date, phase, date.isAfter(today), isOvulationDay)
         }
     }
 
@@ -844,6 +960,7 @@ private fun MonthGrid(
                         isSelected = info.date == selectedDate,
                         phase = info.phase,
                         isFuture = info.isFuture,
+                        isOvulationDay = info.isOvulationDay,
                         roundStart = !mergesWithPrev,
                         roundEnd = !mergesWithNext,
                         phaseFillStyle = phaseFillStyle,
@@ -900,6 +1017,7 @@ private fun DayCell(
     isSelected: Boolean,
     phase: CyclePhase?,
     isFuture: Boolean,
+    isOvulationDay: Boolean,
     roundStart: Boolean,
     roundEnd: Boolean,
     phaseFillStyle: PhaseFillStyle,
@@ -968,9 +1086,23 @@ private fun DayCell(
         contentAlignment = Alignment.Center
     ) {
         if (isSelected) {
+            // Springs in from slightly undersized rather than just appearing: a low-damping
+            // spring naturally overshoots past 1f before settling, reading as a soft "pop"
+            // each time selection moves to this cell -- pairs with the existing tap haptic.
+            val ringScale = remember { Animatable(0.7f) }
+            LaunchedEffect(Unit) {
+                ringScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
             Box(
                 modifier = Modifier
                     .matchParentSize()
+                    .scale(ringScale.value)
                     .border(
                         width = 2.dp,
                         color = if (phaseColor != null && !isDashed) Color.White else accentColor,
@@ -1034,6 +1166,26 @@ private fun DayCell(
                             contentDescription = "Оргазм",
                             tint = appColors.orgasmStar,
                             modifier = Modifier.size(10.dp)
+                        )
+                    }
+                }
+                // Flags the one day within the (multi-day) OVULATORY block that's the actual
+                // predicted ovulation date -- opposite corner from the orgasm star so the two
+                // never collide, on the same white backing-circle treatment for legibility.
+                if (isOvulationDay) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(13.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.95f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.GpsFixed,
+                            contentDescription = "Предполагаемый день овуляции",
+                            tint = appColors.ovulatory,
+                            modifier = Modifier.size(9.dp)
                         )
                     }
                 }

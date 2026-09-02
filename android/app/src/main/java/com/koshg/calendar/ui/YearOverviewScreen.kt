@@ -95,7 +95,9 @@ fun YearOverviewScreen(
                 }
             }
 
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
+                modifier = Modifier.fillMaxSize().adaptiveContentWidth(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -113,6 +115,7 @@ fun YearOverviewScreen(
                     )
                 }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
             }
         }
     }

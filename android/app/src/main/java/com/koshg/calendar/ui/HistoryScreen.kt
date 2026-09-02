@@ -79,16 +79,19 @@ fun HistoryScreen(
                 }
             }
 
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                item { CycleLengthSection(periods, isIrregular) }
-                item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
-                item { ProposalStatsSection(proposalEntries) }
-                item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
-                item { CorrelationInsightsSection(periods, sexEntries, proposalEntries) }
-                item { Spacer(Modifier.height(24.dp)) }
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().adaptiveContentWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    item { CycleLengthSection(periods, isIrregular) }
+                    item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
+                    item { ProposalStatsSection(proposalEntries) }
+                    item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
+                    item { CorrelationInsightsSection(periods, sexEntries, proposalEntries) }
+                    item { Spacer(Modifier.height(24.dp)) }
+                }
             }
         }
     }

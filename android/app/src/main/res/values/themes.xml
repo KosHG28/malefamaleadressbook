@@ -5,11 +5,14 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Shown while the process is cold-starting, before the first Compose frame draws. -->
+    <!-- Shown while the process is cold-starting, before the first Compose frame draws. No
+         windowSplashScreenIconBackgroundColor -- the new wave glyph is itself a colored gradient
+         on a transparent backing (unlike the old solid-white calendar glyph, which needed an
+         opaque circle behind it for contrast), so it sits directly on the pale window background,
+         same as the app icon itself. -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/calendar_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground_wine</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/calendar_primary</item>
         <item name="postSplashScreenTheme">@style/Theme.CalendarApp</item>
     </style>
 </resources>

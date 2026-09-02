@@ -96,7 +96,9 @@ fun SettingsScreen(
                 )
             }
 
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
+                modifier = Modifier.fillMaxSize().adaptiveContentWidth(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
@@ -118,6 +120,7 @@ fun SettingsScreen(
                 item { DataSection(onExportData, onImportData) }
                 item { AboutSection() }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
             }
         }
     }
@@ -430,7 +433,7 @@ private fun AboutSection() {
     }
 
     SectionCard(title = "О приложении") {
-        Text("Календарь", style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
+        Text("Interlude", style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
         Text("Версия $versionName", style = MaterialTheme.typography.bodySmall, color = appColors.textSecondary)
         Spacer(Modifier.height(8.dp))
         Text(
