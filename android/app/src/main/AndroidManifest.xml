@@ -14,8 +14,10 @@
         android:supportsRtl="true">
         <!-- Not itself a launcher entry point: exposed only through the palette-matched
              activity-aliases below, exactly one of which is enabled at a time (see
-             CyclePreferences.applyLauncherIcon), so the home-screen icon follows the chosen
-             color scheme from Settings. -->
+             CyclePreferences.syncLauncherIcon), so the home-screen icon follows the chosen
+             color scheme from Settings. Since a launched task's root component is the alias,
+             not this activity, that switch only ever happens with the app off screen: see
+             MainActivity.onStop. -->
         <activity
             android:name=".MainActivity"
             android:exported="false"

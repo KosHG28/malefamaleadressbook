@@ -22,6 +22,11 @@ private const val KEY_REMINDERS_ENABLED = "reminders_enabled"
 private const val KEY_LAST_PERIOD_REMINDER_EPOCH_DAY = "last_period_reminder_epoch_day"
 private const val KEY_LAST_OVULATION_REMINDER_EPOCH_DAY = "last_ovulation_reminder_epoch_day"
 
+/** The one launcher alias AndroidManifest.xml ships with android:enabled="true"; the other four
+ *  are declared disabled. Needed to resolve COMPONENT_ENABLED_STATE_DEFAULT, which means "as the
+ *  manifest declares" rather than a state of its own. */
+private val MANIFEST_ENABLED_PALETTE = Palette.WINE
+
 /** How a phase-colored day renders in the month grid. */
 enum class PhaseFillStyle {
     /** Solid color, merged into one capsule across a contiguous same-phase run (current look). */
@@ -37,13 +42,11 @@ class CyclePreferences(context: Context) {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     init {
-        // Self-heals the launcher icon to match the stored palette on every process start, not
-        // just when the user actively picks one in Settings -- e.g. after this feature's own
-        // rollout, when the activity-alias components are brand new and default to the manifest's
-        // enabled state (Wine) regardless of whatever palette was already saved.
-        applyLauncherIcon(palette)
+        // No launcher-icon sync here: it can only run with the app off screen (see
+        // [syncLauncherIcon]), and process start is the one moment it definitely isn't --
+        // MainActivity drives it from onStop() instead.
 
-        // Same self-healing idea for reminders: re-syncs the WorkManager job to match the stored
+        // Self-healing for reminders: re-syncs the WorkManager job to match the stored
         // setting (and current permission state) on every start, so an OS-level permission
         // revocation or an app upgrade never leaves a stale job running or a wanted one missing.
         ReminderScheduler.ensureChannel(appContext)
@@ -70,26 +73,39 @@ class CyclePreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_PHASE_FILL_STYLE, value.name).apply()
 
     /** The app's overall accent/background color scheme, picked in Settings -- also drives which
-     *  of the palette-matched launcher-icon activity-aliases is enabled (see [applyLauncherIcon]). */
+     *  of the palette-matched launcher-icon activity-aliases is enabled (see [syncLauncherIcon]).
+     *  Saving it only writes the preference; the icon follows once the app leaves the screen. */
     var palette: Palette
         get() = runCatching {
             Palette.valueOf(prefs.getString(KEY_PALETTE, null) ?: "")
         }.getOrDefault(Palette.WINE)
-        set(value) {
-            prefs.edit().putString(KEY_PALETTE, value.name).apply()
-            applyLauncherIcon(value)
-        }
+        set(value) = prefs.edit().putString(KEY_PALETTE, value.name).apply()
 
-    /** Enables the alias matching [palette] and disables the other four, so the home-screen icon
-     *  follows the chosen color scheme. Wrapped in [runCatching] since toggling component state is
-     *  a call into the OS package manager -- an external boundary a handful of OEM builds are
-     *  known to reject in edge cases -- and a failure here should never break saving the palette
-     *  itself, only silently leave the icon as it was. */
-    private fun applyLauncherIcon(palette: Palette) {
+    /**
+     * Enables the alias matching the stored [palette] and disables the other four, so the
+     * home-screen icon follows the chosen color scheme.
+     *
+     * Only safe to call with the app off screen, which is why MainActivity drives it from
+     * onStop() rather than the palette setter calling it directly: MainActivity is not itself
+     * exported, so the running task's root component IS one of these aliases, and disabling the
+     * alias a task was launched from makes the system tear that task down. That looks exactly
+     * like the app crashing mid-use, and [PackageManager.DONT_KILL_APP] doesn't prevent it --
+     * it spares the process, not the activity.
+     *
+     * Writes only the aliases whose state actually differs, so the usual "palette unchanged"
+     * pass touches the package manager not at all and leaves the backgrounded task alone. Each
+     * write is wrapped in [runCatching] because this is a call into the OS package manager, an
+     * external boundary a handful of OEM builds are known to reject in edge cases -- a failure
+     * should leave the icon as it was, never propagate.
+     */
+    fun syncLauncherIcon() {
         val packageManager = appContext.packageManager
+        val target = palette
         Palette.entries.forEach { candidate ->
             val alias = ComponentName(appContext, candidate.launcherAliasClassName())
-            val state = if (candidate == palette) {
+            val shouldBeEnabled = candidate == target
+            if (isAliasEnabled(packageManager, alias, candidate) == shouldBeEnabled) return@forEach
+            val state = if (shouldBeEnabled) {
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED
             } else {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
@@ -99,6 +115,21 @@ class CyclePreferences(context: Context) {
             }
         }
     }
+
+    /** One alias's current on-device state, resolving COMPONENT_ENABLED_STATE_DEFAULT to what the
+     *  manifest declares. Null when the state can't be read at all, which callers treat as "not
+     *  known to match" and so as worth writing. */
+    private fun isAliasEnabled(
+        packageManager: PackageManager,
+        alias: ComponentName,
+        candidate: Palette
+    ): Boolean? = runCatching {
+        when (packageManager.getComponentEnabledSetting(alias)) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> false
+            else -> candidate == MANIFEST_ENABLED_PALETTE
+        }
+    }.getOrNull()
 
     private fun Palette.launcherAliasClassName(): String = when (this) {
         Palette.WINE -> "com.koshg.calendar.LauncherWine"

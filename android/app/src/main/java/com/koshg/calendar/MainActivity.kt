@@ -35,6 +35,8 @@ private const val SPLASH_EXIT_ANIMATION_MS = 260L
  */
 class MainActivity : FragmentActivity() {
 
+    private val cyclePreferences by lazy { CyclePreferences(applicationContext) }
+
     private val calendarViewModel: CalendarViewModel by viewModels {
         val repository = EventRepository(AppDatabase.getInstance(applicationContext).eventDao())
         CalendarViewModel.factory(repository)
@@ -42,7 +44,7 @@ class MainActivity : FragmentActivity() {
 
     private val cycleViewModel: CycleViewModel by viewModels {
         val repository = CycleRepository(AppDatabase.getInstance(applicationContext).periodDao())
-        CycleViewModel.factory(repository, CyclePreferences(applicationContext))
+        CycleViewModel.factory(repository, cyclePreferences)
     }
 
     private val intimacyViewModel: IntimacyViewModel by viewModels {
@@ -81,6 +83,22 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Picking a color scheme in Settings only stores it; the matching launcher alias is switched
+     * here, once the app is off screen. Doing it at pick time disabled the very alias this task
+     * was launched through (MainActivity itself isn't exported), and the system tears such a task
+     * down -- from the user's side, the app simply vanished mid-use.
+     *
+     * Skipped while merely changing configuration (rotation, folding, theme switch), since the
+     * activity is coming straight back and is still, effectively, on screen.
+     */
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            cyclePreferences.syncLauncherIcon()
         }
     }
 }
