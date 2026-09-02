@@ -95,6 +95,7 @@ import com.koshg.calendar.settings.PhaseFillStyle
 import com.koshg.calendar.ui.theme.LocalPalette
 import com.koshg.calendar.ui.theme.LocalThemeMode
 import com.koshg.calendar.ui.theme.adaptiveAccent
+import com.koshg.calendar.ui.theme.adaptiveGradient
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.CyclePhase
