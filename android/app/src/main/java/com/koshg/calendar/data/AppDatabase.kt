@@ -88,6 +88,10 @@ abstract class AppDatabase : RoomDatabase() {
                     "calendar.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    // TRUNCATE (not the default WAL) so every commit lands fully in calendar.db
+                    // itself, with no separate -wal/-shm sidecar file Android's Auto Backup
+                    // (a plain file copy, no SQLite awareness) could snapshot mid-write.
+                    .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     .build()
                     .also { INSTANCE = it }
             }

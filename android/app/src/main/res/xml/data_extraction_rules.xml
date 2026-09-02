@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Auto Backup saves: the Room database (cycle/intimacy/event data) and the two
+  SharedPreferences files (cycle_prefs: cycle model + appearance settings; app_lock_prefs: the
+  app-lock on/off toggle, never a PIN or biometric secret, those live in the device's own
+  keystore/credential manager, not here). Listing includes puts this in allow-list mode, so
+  nothing else on disk (caches, temp files) is ever backed up.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="calendar.db" />
+        <include domain="sharedpref" path="cycle_prefs.xml" />
+        <include domain="sharedpref" path="app_lock_prefs.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="calendar.db" />
+        <include domain="sharedpref" path="cycle_prefs.xml" />
+        <include domain="sharedpref" path="app_lock_prefs.xml" />
+    </device-transfer>
+</data-extraction-rules>

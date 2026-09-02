@@ -344,5 +344,13 @@ private fun AboutSection() {
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Если в системе включено резервное копирование Android, данные могут сохраняться в " +
+                "Google-аккаунт устройства — это делает сама ОС, без участия приложения; отключается " +
+                "в системных настройках телефона.",
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textSecondary
+        )
     }
 }
