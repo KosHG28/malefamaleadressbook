@@ -249,6 +249,7 @@ private fun DialogBackgroundBlur(radiusPx: Int = 90) {
 fun UnifiedAddSheet(
     initialType: AddType,
     initialDate: LocalDate,
+    initialEndDate: LocalDate? = null,
     fabOrigin: Offset = Offset.Unspecified,
     onDismiss: () -> Unit,
     onSavePeriod: (PeriodEntry) -> Unit,
@@ -256,16 +257,16 @@ fun UnifiedAddSheet(
     onSaveProposal: (ProposalEntry) -> Unit,
     onSaveMasturbation: (MasturbationEntry) -> Unit
 ) {
-    val haptics = LocalHaptics.current
     val appColors = appColors()
 
     var type by remember { mutableStateOf(initialType) }
     var date by remember { mutableStateOf(initialDate) }
+    var periodEndDate by remember { mutableStateOf(initialEndDate) }
     var notes by remember { mutableStateOf("") }
 
     var initiator by remember { mutableStateOf(Initiator.ME) }
     var orgasmCount by remember { mutableStateOf(0) }
-    var accepted by remember { mutableStateOf(true) }
+    var proposalAnswer by remember { mutableStateOf(ProposalAnswer.ACCEPTED) }
     var declineReason by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -335,7 +336,7 @@ fun UnifiedAddSheet(
                 DateField(date) { date = it }
 
                 when (type) {
-                    AddType.Period -> Unit
+                    AddType.Period -> PeriodEndDateField(startDate = date, endDate = periodEndDate) { periodEndDate = it }
 
                     AddType.Sex -> {
                         InitiatorSelector(initiator) { initiator = it }
@@ -344,15 +345,8 @@ fun UnifiedAddSheet(
 
                     AddType.Proposal -> {
                         InitiatorSelector(initiator) { initiator = it }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Switch(checked = accepted, onCheckedChange = {
-                                haptics.perform(HapticEvent.Toggle)
-                                accepted = it
-                            })
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
-                        }
-                        if (!accepted) {
+                        ProposalAnswerSelector(proposalAnswer) { proposalAnswer = it }
+                        if (proposalAnswer == ProposalAnswer.DECLINED) {
                             DeclineReasonSelector(declineReason) { declineReason = it }
                         }
                     }
@@ -380,7 +374,12 @@ fun UnifiedAddSheet(
                     onSave = {
                         when (type) {
                             AddType.Period -> onSavePeriod(
-                                PeriodEntry(id = newEventId(), startDate = date.toString(), notes = notes.trim())
+                                PeriodEntry(
+                                    id = newEventId(),
+                                    startDate = date.toString(),
+                                    endDate = periodEndDate?.takeIf { !it.isBefore(date) }?.toString(),
+                                    notes = notes.trim()
+                                )
                             )
 
                             AddType.Sex -> onSaveSex(
@@ -398,8 +397,9 @@ fun UnifiedAddSheet(
                                     id = newEventId(),
                                     date = date.toString(),
                                     initiator = initiator.storageValue,
-                                    accepted = accepted,
-                                    declineReason = if (accepted) "" else declineReason.trim(),
+                                    accepted = proposalAnswer == ProposalAnswer.ACCEPTED,
+                                    answered = proposalAnswer != ProposalAnswer.PENDING,
+                                    declineReason = if (proposalAnswer == ProposalAnswer.DECLINED) declineReason.trim() else "",
                                     notes = notes.trim()
                                 )
                             )
@@ -488,6 +488,84 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
     }
 }
 
+/** UI-only grouping of [ProposalEntry.accepted]/[ProposalEntry.answered] into one three-way
+ *  choice -- storage keeps the two separate booleans (so a pre-existing, always-answered
+ *  proposal from before this state existed still reads correctly), the sheets only ever show
+ *  and edit this enum. */
+private enum class ProposalAnswer(val label: String) {
+    ACCEPTED("Принято"),
+    DECLINED("Отклонено"),
+    PENDING("Ожидает")
+}
+
+private fun proposalAnswerOf(accepted: Boolean, answered: Boolean): ProposalAnswer = when {
+    !answered -> ProposalAnswer.PENDING
+    accepted -> ProposalAnswer.ACCEPTED
+    else -> ProposalAnswer.DECLINED
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProposalAnswerSelector(selected: ProposalAnswer, onSelect: (ProposalAnswer) -> Unit) {
+    val haptics = LocalHaptics.current
+    val appColors = appColors()
+    Column {
+        Text("Ответ", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+        Spacer(Modifier.height(6.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ProposalAnswer.entries.forEachIndexed { index, entry ->
+                val isSelected = selected == entry
+                SegmentedButton(
+                    selected = isSelected,
+                    onClick = {
+                        haptics.perform(HapticEvent.Tap)
+                        onSelect(entry)
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = ProposalAnswer.entries.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = appColors.accent,
+                        activeContentColor = Color.White,
+                        activeBorderColor = appColors.accent,
+                        inactiveContainerColor = Color.Transparent,
+                        inactiveContentColor = appColors.textPrimary,
+                        inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
+                    )
+                ) { Text(entry.label, color = if (isSelected) Color.White else appColors.textPrimary, maxLines = 1) }
+            }
+        }
+    }
+}
+
+/** A same-style toggle + optional second [DateField] for [PeriodEntry.endDate] -- off (null) by
+ *  default, since logging only the start date is the common case and an unentered end must never
+ *  be read as "still ongoing" (see [PeriodEntry.endDate]). */
+@Composable
+private fun PeriodEndDateField(startDate: LocalDate, endDate: LocalDate?, onEndDateChange: (LocalDate?) -> Unit) {
+    val haptics = LocalHaptics.current
+    val appColors = appColors()
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "Указать дату окончания",
+                style = MaterialTheme.typography.labelLarge,
+                color = appColors.textSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = endDate != null,
+                onCheckedChange = { checked ->
+                    haptics.perform(HapticEvent.Toggle)
+                    onEndDateChange(if (checked) startDate else null)
+                }
+            )
+        }
+        if (endDate != null) {
+            Spacer(Modifier.height(6.dp))
+            DateField(endDate) { onEndDateChange(it) }
+        }
+    }
+}
+
 @Composable
 internal fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Unit) {
     val haptics = LocalHaptics.current
@@ -535,6 +613,7 @@ private fun SheetActions(onDismiss: () -> Unit, onDelete: (() -> Unit)?, onSave:
 @Composable
 fun PeriodSheet(
     initialDate: LocalDate,
+    initialEndDate: LocalDate? = null,
     entry: PeriodEntry?,
     onDismiss: () -> Unit,
     onSave: (PeriodEntry) -> Unit,
@@ -543,6 +622,7 @@ fun PeriodSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val appColors = appColors()
     var date by remember { mutableStateOf(entry?.startDate?.toLocalDateOrNull() ?: initialDate) }
+    var endDate by remember { mutableStateOf(entry?.endDate?.toLocalDateOrNull() ?: initialEndDate) }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
@@ -559,6 +639,7 @@ fun PeriodSheet(
                 color = appColors.textPrimary
             )
             DateField(date) { date = it }
+            PeriodEndDateField(startDate = date, endDate = endDate) { endDate = it }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
@@ -577,6 +658,7 @@ fun PeriodSheet(
                         PeriodEntry(
                             id = entry?.id ?: newEventId(),
                             startDate = date.toString(),
+                            endDate = endDate?.takeIf { !it.isBefore(date) }?.toString(),
                             notes = notes.trim()
                         )
                     )
@@ -657,11 +739,12 @@ fun ProposalSheet(
     onDelete: (() -> Unit)?
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val haptics = LocalHaptics.current
     val appColors = appColors()
     var date by remember { mutableStateOf(entry?.date?.toLocalDateOrNull() ?: initialDate) }
     var initiator by remember { mutableStateOf(entry?.initiator?.let(Initiator::fromStorage) ?: Initiator.ME) }
-    var accepted by remember { mutableStateOf(entry?.accepted ?: true) }
+    var answer by remember {
+        mutableStateOf(proposalAnswerOf(entry?.accepted ?: true, entry?.answered ?: true))
+    }
     var declineReason by remember { mutableStateOf(entry?.declineReason ?: "") }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
@@ -680,15 +763,8 @@ fun ProposalSheet(
             )
             DateField(date) { date = it }
             InitiatorSelector(initiator) { initiator = it }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = accepted, onCheckedChange = {
-                    haptics.perform(HapticEvent.Toggle)
-                    accepted = it
-                })
-                Spacer(Modifier.width(8.dp))
-                Text(if (accepted) "Принято" else "Отклонено", color = appColors.textPrimary)
-            }
-            if (!accepted) {
+            ProposalAnswerSelector(answer) { answer = it }
+            if (answer == ProposalAnswer.DECLINED) {
                 DeclineReasonSelector(declineReason) { declineReason = it }
             }
             OutlinedTextField(
@@ -710,8 +786,9 @@ fun ProposalSheet(
                             id = entry?.id ?: newEventId(),
                             date = date.toString(),
                             initiator = initiator.storageValue,
-                            accepted = accepted,
-                            declineReason = if (accepted) "" else declineReason.trim(),
+                            accepted = answer == ProposalAnswer.ACCEPTED,
+                            answered = answer != ProposalAnswer.PENDING,
+                            declineReason = if (answer == ProposalAnswer.DECLINED) declineReason.trim() else "",
                             notes = notes.trim()
                         )
                     )

@@ -20,6 +20,11 @@ private const val PREFERRED_HOUR = 9
 
 const val REMINDER_CHANNEL_ID = "cycle_reminders"
 
+// Shared between ReminderWorker (posts these notifications) and MarkPeriodStartReceiver (needs
+// NOTIFICATION_ID_PERIOD to dismiss the one its action button was tapped on).
+const val NOTIFICATION_ID_PERIOD = 1001
+const val NOTIFICATION_ID_OVULATION = 1002
+
 /** Schedules (or cancels) the daily WorkManager check behind the opt-in reminders setting --
  *  see [ReminderWorker] for what it actually checks and notifies about. Everything here is local:
  *  no server, no push service, just an on-device periodic job. */

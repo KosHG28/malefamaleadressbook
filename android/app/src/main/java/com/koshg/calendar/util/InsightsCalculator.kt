@@ -71,6 +71,9 @@ fun computeCorrelationInsights(
             Initiator.ME -> tally.meInitiated++
             Initiator.PARTNER -> tally.partnerInitiated++
         }
+        // An unanswered proposal still counts toward who initiates -- it just has no
+        // accepted/declined outcome yet, so it can't feed the acceptance-rate tallies below.
+        if (!entry.answered) return@forEach
         if (entry.accepted) {
             tally.accepted++
         } else {
@@ -154,7 +157,7 @@ fun computeProactiveSuggestion(
     val longAbsence = daysSinceLast == null || daysSinceLast >= LONG_ABSENCE_DAYS_THRESHOLD
 
     val recentFatigueDeclines = proposalEntries.count { entry ->
-        !entry.accepted &&
+        entry.answered && !entry.accepted &&
             entry.declineReason.contains("устал", ignoreCase = true) &&
             entry.date.toLocalDateOrNull()?.let { ChronoUnit.DAYS.between(it, today) <= FATIGUE_LOOKBACK_DAYS } == true
     }

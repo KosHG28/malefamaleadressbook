@@ -26,6 +26,7 @@ fun DataSnapshot.toExportJson(): String {
         JSONObject()
             .put("id", entry.id)
             .put("startDate", entry.startDate)
+            .put("endDate", entry.endDate ?: JSONObject.NULL)
             .put("notes", entry.notes)
     }))
 
@@ -56,6 +57,7 @@ fun DataSnapshot.toExportJson(): String {
             .put("date", entry.date)
             .put("initiator", entry.initiator)
             .put("accepted", entry.accepted)
+            .put("answered", entry.answered)
             .put("declineReason", entry.declineReason)
             .put("notes", entry.notes)
     }))
@@ -88,6 +90,7 @@ fun parseDataSnapshot(json: String): DataSnapshot {
             PeriodEntry(
                 id = obj.getString("id"),
                 startDate = obj.getString("startDate"),
+                endDate = obj.optNullableString("endDate"),
                 notes = obj.optString("notes", "")
             )
         }.getOrNull()
@@ -127,6 +130,7 @@ fun parseDataSnapshot(json: String): DataSnapshot {
                 date = obj.getString("date"),
                 initiator = obj.getString("initiator"),
                 accepted = obj.optBoolean("accepted", true),
+                answered = obj.optBoolean("answered", true),
                 declineReason = obj.optString("declineReason", ""),
                 notes = obj.optString("notes", "")
             )

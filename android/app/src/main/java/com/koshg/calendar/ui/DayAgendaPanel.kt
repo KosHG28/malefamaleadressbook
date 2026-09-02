@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
@@ -261,18 +262,34 @@ private fun SexRow(entry: SexEntry, onClick: () -> Unit) {
 @Composable
 private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
     val colors = appColors()
-    val accentColor = if (entry.accepted) colors.proposalAccepted else colors.proposalDeclined
+    val accentColor = when {
+        !entry.answered -> colors.warning
+        entry.accepted -> colors.proposalAccepted
+        else -> colors.proposalDeclined
+    }
     val parts = buildList {
         add("От: ${Initiator.fromStorage(entry.initiator).label}")
-        add(if (entry.accepted) "принято" else "отклонено")
-        if (!entry.accepted && entry.declineReason.isNotBlank()) add("причина: ${entry.declineReason}")
+        add(
+            when {
+                !entry.answered -> "ожидает ответа"
+                entry.accepted -> "принято"
+                else -> "отклонено"
+            }
+        )
+        if (entry.answered && !entry.accepted && entry.declineReason.isNotBlank()) {
+            add("причина: ${entry.declineReason}")
+        }
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
     AgendaRow(
         leadingColor = accentColor,
         icon = {
             Icon(
-                if (entry.accepted) Icons.Default.Check else Icons.Default.Close,
+                when {
+                    !entry.answered -> Icons.Default.QuestionMark
+                    entry.accepted -> Icons.Default.Check
+                    else -> Icons.Default.Close
+                },
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(20.dp)

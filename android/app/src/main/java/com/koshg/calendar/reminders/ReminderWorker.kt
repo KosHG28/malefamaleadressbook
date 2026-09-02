@@ -1,7 +1,9 @@
 package com.koshg.calendar.reminders
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -25,9 +27,6 @@ private const val PERIOD_REMINDER_LEAD_DAYS = 2L
 /** How late an ovulation reminder may still be posted after the predicted day, when the worker
  *  didn't get to run on the day itself. One day: past that the notification stops being useful. */
 private const val OVULATION_REMINDER_CATCH_UP_DAYS = 1L
-
-private const val NOTIFICATION_ID_PERIOD = 1001
-private const val NOTIFICATION_ID_OVULATION = 1002
 
 /**
  * Runs roughly once a day (see [ReminderScheduler]) and checks today's date against the same
@@ -66,7 +65,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     1L -> "По прогнозу — завтра"
                     else -> "По прогнозу — через $daysUntil дня"
                 }
-                notifier.notify(NOTIFICATION_ID_PERIOD, buildNotification("Месячные скоро", text))
+                notifier.notify(NOTIFICATION_ID_PERIOD, buildNotification("Месячные скоро", text, markStartAction()))
                 preferences.periodReminderNotifiedForEpochDay = predicted.toEpochDay()
             }
         }
@@ -88,12 +87,26 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         return Result.success()
     }
 
-    private fun buildNotification(title: String, text: String) =
+    private fun buildNotification(title: String, text: String, action: NotificationCompat.Action? = null) =
         NotificationCompat.Builder(applicationContext, REMINDER_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .apply { if (action != null) addAction(action) }
             .build()
+
+    /** Logs today as a period start directly from the notification shade, via
+     *  [MarkPeriodStartReceiver] -- no need to open the app first. */
+    private fun markStartAction(): NotificationCompat.Action {
+        val intent = Intent(applicationContext, MarkPeriodStartReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            NOTIFICATION_ID_PERIOD,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Action.Builder(R.drawable.ic_notification, "Отметить начало", pendingIntent).build()
+    }
 }

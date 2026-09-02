@@ -58,6 +58,14 @@ class MainActivity : FragmentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
+        // A genuine new session, not a configuration-change recreation (savedInstanceState is
+        // non-null exactly when the system is restoring a recreated activity, e.g. after
+        // rotation) -- recorded before cycleViewModel is first touched below, so its own
+        // one-shot showExtendedFabLabel already reflects this open.
+        if (savedInstanceState == null) {
+            cyclePreferences.recordAppOpen()
+        }
+
         // A brief zoom-and-fade out of the app icon on exit, rather than the platform's abrupt
         // default cut, so cold start reads as one continuous "loading" motion into the app.
         splashScreen.setOnExitAnimationListener { splashScreenView ->

@@ -14,10 +14,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -33,11 +35,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,12 +61,17 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +105,7 @@ import com.koshg.calendar.util.cyclePhaseFor
 import com.koshg.calendar.util.ovulationDateFor
 import com.koshg.calendar.util.cyclePhaseProgressFor
 import com.koshg.calendar.util.monthYearLabel
+import com.koshg.calendar.util.toLocalDateOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,9 +123,13 @@ sealed interface ActiveSheet {
 
     /** The FAB's "add" flow — a single sheet with a type-chip row instead of a two-step chooser. */
     data class New(val date: LocalDate) : ActiveSheet
+
+    /** A start/end pair dragged out on the month grid (see MonthGrid's range-selection mode) --
+     *  opens the Period sheet pre-filled with both dates, still unsaved until the user confirms. */
+    data class PeriodRangeDraft(val start: LocalDate, val end: LocalDate) : ActiveSheet
 }
 
-internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED }
+internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED, PROPOSAL_PENDING }
 
 private data class GridDayInfo(
     val date: LocalDate,
@@ -232,6 +247,7 @@ private fun CalendarScreenContent(
 
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var onboardingDismissed by remember { mutableStateOf(false) }
     var showYearOverview by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
     // Captured from the FAB's own layout so the add-entry dialog can grow out from wherever the
@@ -251,16 +267,22 @@ private fun CalendarScreenContent(
     }
 
     // The FAB guesses intent from the selected day rather than always showing a plain "+":
-    // a droplet flags a day with no period entry yet whose start is the model's own next-period
-    // prediction, since that's the single most likely thing the user is about to log there.
+    // an unanswered proposal on that day is the most actionable thing to resolve, so it takes
+    // priority over the droplet, which flags a day with no period entry yet whose start is the
+    // model's own next-period prediction -- the next most likely thing being logged there.
     val selectedDateKey = uiState.selectedDate.toString()
+    val hasPendingProposal = proposalByDate[selectedDateKey]?.answered == false
     val isPredictedPeriodStartDay = !periodByDate.containsKey(selectedDateKey) &&
         cycleState.stats.predictedNextPeriod == uiState.selectedDate
-    val fabIcon = if (isPredictedPeriodStartDay) Icons.Default.WaterDrop else Icons.Default.Add
-    val fabContentDescription = if (isPredictedPeriodStartDay) {
-        "Добавить: прогнозируется начало месячных"
-    } else {
-        "Добавить"
+    val fabIcon = when {
+        hasPendingProposal -> Icons.Default.QuestionMark
+        isPredictedPeriodStartDay -> Icons.Default.WaterDrop
+        else -> Icons.Default.Add
+    }
+    val fabContentDescription = when {
+        hasPendingProposal -> "Ответить на предложение"
+        isPredictedPeriodStartDay -> "Добавить: прогнозируется начало месячных"
+        else -> "Добавить"
     }
 
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
@@ -283,22 +305,34 @@ private fun CalendarScreenContent(
                 val fabInteractionSource = remember { MutableInteractionSource() }
                 val fabPressed by fabInteractionSource.collectIsPressedAsState()
                 val fabScale by animateFloatAsState(if (fabPressed) 0.9f else 1f, label = "fabScale")
-                FloatingActionButton(
+                // A plain icon FAB reads as "add" only to someone who's already used a Material
+                // app enough to know the convention -- the very first sessions instead show it
+                // as an ExtendedFloatingActionButton with a text label, which collapses to the
+                // icon-only form once that's had a chance to sink in (see
+                // CycleViewModel.showExtendedFabLabel).
+                ExtendedFloatingActionButton(
                     onClick = {
                         haptics.perform(HapticEvent.Select)
-                        activeSheet = ActiveSheet.New(uiState.selectedDate)
+                        activeSheet = if (hasPendingProposal) {
+                            ActiveSheet.Proposal(proposalByDate[selectedDateKey], uiState.selectedDate)
+                        } else {
+                            ActiveSheet.New(uiState.selectedDate)
+                        }
                     },
+                    expanded = cycleViewModel.showExtendedFabLabel && !hasPendingProposal,
+                    icon = {
+                        AnimatedContent(targetState = fabIcon, label = "fabIcon") { icon ->
+                            Icon(icon, contentDescription = fabContentDescription)
+                        }
+                    },
+                    text = { Text("Добавить") },
                     containerColor = dynamicAccent,
                     contentColor = Color.White,
                     interactionSource = fabInteractionSource,
                     modifier = Modifier
                         .scale(fabScale)
                         .onGloballyPositioned { fabOrigin = it.boundsInRoot().center }
-                ) {
-                    AnimatedContent(targetState = fabIcon, label = "fabIcon") { icon ->
-                        Icon(icon, contentDescription = fabContentDescription)
-                    }
-                }
+                )
             }
         ) { padding ->
             BoxWithConstraints(
@@ -351,7 +385,28 @@ private fun CalendarScreenContent(
                         }
                     )
 
-                    if (widthClass == WindowWidthClass.COMPACT) {
+                    if (cycleViewModel.showOnboardingHint && !onboardingDismissed) {
+                        OnboardingHint(
+                            onDismiss = {
+                                onboardingDismissed = true
+                                cycleViewModel.markOnboardingSeen()
+                            }
+                        )
+                    }
+
+                    if (cycleState.periods.isEmpty()) {
+                        // Nothing logged yet -- an all-grey grid explains nothing on its own, so
+                        // this replaces the grid+agenda area entirely with one explanation and
+                        // one button, rather than making a first-time user guess what the FAB is
+                        // for from an empty calendar.
+                        EmptyCalendarState(
+                            modifier = Modifier.weight(1f),
+                            onAddFirstPeriod = {
+                                haptics.perform(HapticEvent.Select)
+                                activeSheet = ActiveSheet.Period(null, uiState.selectedDate)
+                            }
+                        )
+                    } else if (widthClass == WindowWidthClass.COMPACT) {
                         // A phone, folded or not -- the month grid and the selected day's agenda
                         // stack vertically exactly as before, agenda taking whatever's left.
                         CalendarMonthSection(
@@ -366,7 +421,8 @@ private fun CalendarScreenContent(
                             masturbationDates = masturbationDates,
                             orgasmDates = orgasmDates,
                             haptics = haptics,
-                            onNewEntry = { activeSheet = ActiveSheet.New(it) }
+                            onNewEntry = { activeSheet = ActiveSheet.New(it) },
+                            onRangeSelected = { start, end -> activeSheet = ActiveSheet.PeriodRangeDraft(start, end) }
                         )
                         agendaPanel(Modifier.weight(1f))
                     } else {
@@ -387,6 +443,7 @@ private fun CalendarScreenContent(
                                 orgasmDates = orgasmDates,
                                 haptics = haptics,
                                 onNewEntry = { activeSheet = ActiveSheet.New(it) },
+                                onRangeSelected = { start, end -> activeSheet = ActiveSheet.PeriodRangeDraft(start, end) },
                                 modifier = Modifier
                                     .weight(0.55f)
                                     .fillMaxHeight()
@@ -483,9 +540,16 @@ private fun CalendarScreenContent(
             initialDate = sheet.date,
             entry = sheet.entry,
             onDismiss = { activeSheet = null },
-            onSave = {
+            onSave = { entry ->
                 haptics.perform(HapticEvent.LogEntry)
-                cycleViewModel.savePeriod(it)
+                // Only for a genuinely new period, not an edit of an old one -- correcting a
+                // typo in a months-old entry isn't "you just started your period", so it
+                // shouldn't be met with a verdict on the forecast.
+                if (sheet.entry == null) {
+                    predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                        ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                }
+                cycleViewModel.savePeriod(entry)
                 activeSheet = null
             },
             onDelete = sheet.entry?.let {
@@ -495,6 +559,21 @@ private fun CalendarScreenContent(
                     activeSheet = null
                 }
             }
+        )
+
+        is ActiveSheet.PeriodRangeDraft -> PeriodSheet(
+            initialDate = sheet.start,
+            initialEndDate = sheet.end,
+            entry = null,
+            onDismiss = { activeSheet = null },
+            onSave = { entry ->
+                haptics.perform(HapticEvent.LogEntry)
+                predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                    ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                cycleViewModel.savePeriod(entry)
+                activeSheet = null
+            },
+            onDelete = null
         )
 
         is ActiveSheet.Sex -> SexSheet(
@@ -556,9 +635,11 @@ private fun CalendarScreenContent(
             initialDate = sheet.date,
             fabOrigin = fabOrigin,
             onDismiss = { activeSheet = null },
-            onSavePeriod = {
+            onSavePeriod = { entry ->
                 haptics.perform(HapticEvent.LogEntry)
-                cycleViewModel.savePeriod(it)
+                predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                    ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                cycleViewModel.savePeriod(entry)
                 activeSheet = null
             },
             onSaveSex = {
@@ -602,9 +683,11 @@ private fun CalendarMonthSection(
     orgasmDates: Set<String>,
     haptics: Haptics,
     onNewEntry: (LocalDate) -> Unit,
+    onRangeSelected: (LocalDate, LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
+        var rangeSelectionMode by remember { mutableStateOf(false) }
         val baseMonth = remember { YearMonth.now() }
         val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
         val pagerCenterPage = pagerPageCount / 2
@@ -636,8 +719,21 @@ private fun CalendarMonthSection(
                 MonthNav(
                     monthLabel = monthYearLabel(month.atDay(1)),
                     onPrev = { haptics.perform(HapticEvent.Tap); viewModel.goToPreviousMonth() },
-                    onNext = { haptics.perform(HapticEvent.Tap); viewModel.goToNextMonth() }
+                    onNext = { haptics.perform(HapticEvent.Tap); viewModel.goToNextMonth() },
+                    rangeSelectionMode = rangeSelectionMode,
+                    onToggleRangeSelectionMode = {
+                        haptics.perform(HapticEvent.Toggle)
+                        rangeSelectionMode = !rangeSelectionMode
+                    }
                 )
+                if (rangeSelectionMode) {
+                    Text(
+                        "Проведите пальцем по дням месячных",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = appColors().textSecondary,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 WeekdayHeader()
                 MonthGrid(
@@ -653,6 +749,7 @@ private fun CalendarMonthSection(
                     proposalByDate = proposalByDate,
                     masturbationDates = masturbationDates,
                     orgasmDates = orgasmDates,
+                    rangeSelectionMode = rangeSelectionMode,
                     onDayClick = { date ->
                         haptics.perform(HapticEvent.Tap)
                         viewModel.selectDate(date)
@@ -661,6 +758,11 @@ private fun CalendarMonthSection(
                         haptics.perform(HapticEvent.Select)
                         viewModel.selectDate(date)
                         onNewEntry(date)
+                    },
+                    onRangeSelected = { start, end ->
+                        haptics.perform(HapticEvent.Select)
+                        rangeSelectionMode = false
+                        onRangeSelected(start, end)
                     }
                 )
             }
@@ -702,6 +804,111 @@ private fun CalendarMonthSection(
                     suggestion = suggestion,
                     onDismiss = { haptics.perform(HapticEvent.Tap); cycleViewModel.dismissSuggestion() }
                 )
+            }
+        }
+    }
+}
+
+/** A short verdict on the model's own forecast, shown right when a new period gets logged --
+ *  comparing what the app predicted (captured *before* this save) against what actually
+ *  happened builds trust in the predictions the rest of the app leans on. Null with no prior
+ *  prediction to grade (no cycle history yet) or an unparseable date. */
+private fun predictionAccuracyMessage(predicted: LocalDate?, actualStart: LocalDate?): String? {
+    if (predicted == null || actualStart == null) return null
+    val diffDays = ChronoUnit.DAYS.between(predicted, actualStart)
+    return when {
+        diffDays == 0L -> "Прогноз оказался точным!"
+        diffDays > 0 -> "Начались на $diffDays дн. позже прогноза"
+        else -> "Начались на ${-diffDays} дн. раньше прогноза"
+    }
+}
+
+/** Shown instead of the grid+agenda area until the very first period is logged -- a blank grid
+ *  of grey pills explains nothing on its own, so this names the one action that unlocks the rest
+ *  of the app (every phase color, prediction, and marker on this screen derives from period
+ *  dates) instead of leaving a first-time user to discover the FAB unprompted. */
+@Composable
+private fun EmptyCalendarState(onAddFirstPeriod: () -> Unit, modifier: Modifier = Modifier) {
+    val appColors = appColors()
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.WaterDrop,
+            contentDescription = null,
+            tint = appColors.accent,
+            modifier = Modifier.size(56.dp)
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "Пока нет ни одной записи",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = appColors.textPrimary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Отметьте дату начала последних месячных — календарь сразу покажет фазы цикла и " +
+                "прогноз следующих",
+            style = MaterialTheme.typography.bodyMedium,
+            color = appColors.textSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = onAddFirstPeriod,
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Отметить начало месячных")
+        }
+    }
+}
+
+/** A one-time coach mark explaining the header's History/Settings icons -- shown at most once,
+ *  ever (see [CycleViewModel.showOnboardingHint]). Plain declarative flow right below the header,
+ *  the same pattern as [SuggestionBanner]/[EmptyCalendarState] use, rather than a custom overlay
+ *  chasing the icons' exact on-screen position: a small upward-pointing triangle is enough to
+ *  read as "this is about the row above" without needing to track it pixel-for-pixel. */
+@Composable
+private fun OnboardingHint(onDismiss: () -> Unit) {
+    val appColors = appColors()
+    val haptics = LocalHaptics.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Canvas(modifier = Modifier.size(16.dp, 8.dp)) {
+            val path = Path().apply {
+                moveTo(size.width / 2f, 0f)
+                lineTo(0f, size.height)
+                lineTo(size.width, size.height)
+                close()
+            }
+            drawPath(path, color = appColors.warmSurface)
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(appColors.warmSurface)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text(
+                "Значки выше — история/тренды слева и настройки справа",
+                style = MaterialTheme.typography.bodySmall,
+                color = appColors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = { haptics.perform(HapticEvent.Tap); onDismiss() }) {
+                Text("Понятно", color = appColors.accent)
             }
         }
     }
@@ -792,7 +999,13 @@ private fun CalendarHeader(
 }
 
 @Composable
-private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit) {
+private fun MonthNav(
+    monthLabel: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    rangeSelectionMode: Boolean,
+    onToggleRangeSelectionMode: () -> Unit
+) {
     val appColors = appColors()
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
@@ -809,6 +1022,21 @@ private fun MonthNav(monthLabel: String, onPrev: () -> Unit, onNext: () -> Unit)
         Spacer(Modifier.width(4.dp))
         IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Следующий месяц", tint = appColors.textPrimary)
+        }
+        Spacer(Modifier.weight(1f))
+        // Off by default so it never competes with the plain day tap/long-press this whole grid
+        // otherwise relies on -- while on, dragging a finger across days in MonthGrid selects a
+        // period range instead of selecting a single day.
+        IconButton(onClick = onToggleRangeSelectionMode, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = if (rangeSelectionMode) {
+                    "Выключить выбор диапазона месячных"
+                } else {
+                    "Выбрать диапазон месячных протягиванием пальца"
+                },
+                tint = if (rangeSelectionMode) appColors.accent else appColors.textSecondary
+            )
         }
     }
 }
@@ -934,8 +1162,10 @@ private fun MonthGrid(
     proposalByDate: Map<String, ProposalEntry>,
     masturbationDates: Set<String>,
     orgasmDates: Set<String>,
+    rangeSelectionMode: Boolean,
     onDayClick: (LocalDate) -> Unit,
-    onDayLongClick: (LocalDate) -> Unit
+    onDayLongClick: (LocalDate) -> Unit,
+    onRangeSelected: (LocalDate, LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
     val firstOfMonth = viewMonth.atDay(1)
@@ -955,7 +1185,67 @@ private fun MonthGrid(
         }
     }
 
-    Column {
+    // Hit-testing for the range-selection drag below: each cell reports its own on-screen
+    // bounds in window coordinates (so they're directly comparable across rows/weeks, unlike
+    // parent-relative bounds which differ per week's own Row), and the drag gesture just checks
+    // which cell's bounds contain the pointer, converted to the same coordinate space via this
+    // Column's own captured LayoutCoordinates.
+    val cellBounds = remember { mutableStateMapOf<LocalDate, Rect>() }
+    var gridCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var dragAnchor by remember { mutableStateOf<LocalDate?>(null) }
+    var dragCurrent by remember { mutableStateOf<LocalDate?>(null) }
+    LaunchedEffect(rangeSelectionMode) {
+        if (!rangeSelectionMode) {
+            dragAnchor = null
+            dragCurrent = null
+        }
+    }
+    val dragRange = dragAnchor?.let { anchor -> dragCurrent?.let { current -> minOf(anchor, current)..maxOf(anchor, current) } }
+
+    Column(
+        modifier = Modifier
+            .onGloballyPositioned { gridCoordinates = it }
+            .then(
+                // Attached only in range-selection mode, so the default tap/long-press path on
+                // each DayCell below is completely untouched otherwise -- this drag detector
+                // exists at all only when the user has explicitly opted into it (see MonthNav).
+                if (rangeSelectionMode) {
+                    Modifier.pointerInput(gridDays) {
+                        fun hitTest(localPosition: Offset): LocalDate? {
+                            val coords = gridCoordinates ?: return null
+                            val windowPos = coords.localToWindow(localPosition)
+                            return cellBounds.entries.firstOrNull { it.value.contains(windowPos) }?.key
+                        }
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val hit = hitTest(offset)
+                                dragAnchor = hit
+                                dragCurrent = hit
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                hitTest(change.position)?.let { dragCurrent = it }
+                            },
+                            onDragEnd = {
+                                val start = dragAnchor
+                                val end = dragCurrent
+                                if (start != null && end != null && start != end) {
+                                    onRangeSelected(minOf(start, end), maxOf(start, end))
+                                }
+                                dragAnchor = null
+                                dragCurrent = null
+                            },
+                            onDragCancel = {
+                                dragAnchor = null
+                                dragCurrent = null
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         for (week in 0 until weeks) {
             Row(
                 modifier = Modifier
@@ -989,6 +1279,7 @@ private fun MonthGrid(
                     val dateKey = info.date.toString()
                     val marker = when {
                         sexByDate.containsKey(dateKey) -> IntimacyMarker.SEX
+                        proposalByDate[dateKey]?.answered == false -> IntimacyMarker.PROPOSAL_PENDING
                         proposalByDate[dateKey]?.accepted == true -> IntimacyMarker.PROPOSAL_ACCEPTED
                         proposalByDate.containsKey(dateKey) -> IntimacyMarker.PROPOSAL_DECLINED
                         else -> IntimacyMarker.NONE
@@ -1010,9 +1301,12 @@ private fun MonthGrid(
                         dayEvents = eventsByDate[dateKey].orEmpty(),
                         intimacyMarker = marker,
                         hasMasturbation = dateKey in masturbationDates,
+                        isDragHighlighted = dragRange?.let { info.date in it } == true,
                         onClick = { onDayClick(info.date) },
                         onLongClick = { onDayLongClick(info.date) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .onGloballyPositioned { cellBounds[info.date] = it.boundsInWindow() }
                     )
                 }
             }
@@ -1067,6 +1361,7 @@ private fun DayCell(
     dayEvents: List<CalendarEvent>,
     intimacyMarker: IntimacyMarker,
     hasMasturbation: Boolean,
+    isDragHighlighted: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1151,6 +1446,16 @@ private fun DayCell(
             ),
         contentAlignment = Alignment.Center
     ) {
+        // The live preview while dragging out a period range (see MonthGrid's range-selection
+        // mode) -- a plain translucent fill, deliberately simpler than the selection ring below,
+        // since it's provisional and disappears the moment the drag ends either way.
+        if (isDragHighlighted) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(accentColor.copy(alpha = 0.28f), if (phaseColor != null) runShape else pillShape)
+            )
+        }
         if (isSelected) {
             // Springs in from slightly undersized rather than just appearing: a low-damping
             // spring naturally overshoots past 1f before settling, reading as a soft "pop"
@@ -1184,6 +1489,7 @@ private fun DayCell(
             IntimacyMarker.SEX -> appColors.intimacy
             IntimacyMarker.PROPOSAL_ACCEPTED -> appColors.proposalAccepted
             IntimacyMarker.PROPOSAL_DECLINED -> appColors.proposalDeclined
+            IntimacyMarker.PROPOSAL_PENDING -> appColors.warning
             IntimacyMarker.NONE -> if (hasMasturbation) appColors.solo else null
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

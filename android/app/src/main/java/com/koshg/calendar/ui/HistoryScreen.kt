@@ -272,14 +272,27 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
                 color = appColors.textSecondary
             )
         } else {
-            val accepted = proposals.count { it.accepted }
-            val total = proposals.size
-            val percent = accepted * 100 / total
-            Text(
-                "Принято $accepted из $total ($percent%)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = appColors.textPrimary
-            )
+            // Pending proposals have no outcome yet -- counting them into the denominator would
+            // permanently deflate the acceptance rate for however long they stay unanswered.
+            val answered = proposals.filter { it.answered }
+            val pendingCount = proposals.size - answered.size
+            val accepted = answered.count { it.accepted }
+            val total = answered.size
+            if (total > 0) {
+                val percent = accepted * 100 / total
+                Text(
+                    "Принято $accepted из $total ($percent%)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = appColors.textPrimary
+                )
+            }
+            if (pendingCount > 0) {
+                Text(
+                    "Ожидает ответа: $pendingCount",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.warning
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier

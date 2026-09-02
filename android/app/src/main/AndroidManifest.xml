@@ -23,6 +23,12 @@
             android:exported="false"
             android:theme="@style/Theme.App.Starting" />
 
+        <!-- Handles the "Отметить начало" action button on the period-approaching reminder
+             notification. Not exported: only reached via a PendingIntent this app builds itself. -->
+        <receiver
+            android:name=".reminders.MarkPeriodStartReceiver"
+            android:exported="false" />
+
         <activity-alias
             android:name=".LauncherWine"
             android:targetActivity=".MainActivity"

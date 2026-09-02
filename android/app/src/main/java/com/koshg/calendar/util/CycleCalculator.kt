@@ -204,6 +204,22 @@ private fun resolveCycleWindow(date: LocalDate, periods: List<PeriodEntry>): Cyc
     return CycleWindow(cycleStart, nextPeriodStart)
 }
 
+/**
+ * The exclusive end of the menstrual-phase block starting at [cycleStart] -- the day after the
+ * logged [PeriodEntry.endDate] for that specific period when one was recorded, so a cycle with an
+ * actual end date colors exactly as long as it really ran rather than the fixed assumption. Falls
+ * back to [ASSUMED_PERIOD_DURATION_DAYS] for predicted/future cycles and any period logged before
+ * this field existed.
+ */
+private fun periodEndFor(cycleStart: LocalDate, periods: List<PeriodEntry>): LocalDate {
+    val loggedEnd = periods
+        .firstOrNull { it.startDate.toLocalDateOrNull() == cycleStart }
+        ?.endDate
+        ?.toLocalDateOrNull()
+        ?.takeIf { !it.isBefore(cycleStart) }
+    return loggedEnd?.plusDays(1) ?: cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
+}
+
 /** Classifies [date] into a cycle phase. See [resolveCycleWindow] for how the enclosing cycle is found. */
 fun cyclePhaseFor(
     date: LocalDate,
@@ -213,7 +229,7 @@ fun cyclePhaseFor(
 ): CyclePhase? {
     val window = resolveCycleWindow(date, periods) ?: return null
 
-    val periodEnd = window.cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
+    val periodEnd = periodEndFor(window.cycleStart, periods)
     val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
@@ -257,7 +273,7 @@ fun cyclePhaseProgressFor(
 ): Pair<CyclePhase, Float>? {
     val window = resolveCycleWindow(date, periods) ?: return null
 
-    val periodEnd = window.cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
+    val periodEnd = periodEndFor(window.cycleStart, periods)
     val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())

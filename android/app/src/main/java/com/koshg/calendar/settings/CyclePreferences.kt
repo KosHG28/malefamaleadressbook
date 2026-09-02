@@ -24,6 +24,8 @@ private const val KEY_REMINDERS_ENABLED = "reminders_enabled"
 // different things.
 private const val KEY_PERIOD_REMINDER_NOTIFIED_FOR = "period_reminder_notified_for_epoch_day"
 private const val KEY_OVULATION_REMINDER_NOTIFIED_FOR = "ovulation_reminder_notified_for_epoch_day"
+private const val KEY_APP_OPEN_COUNT = "app_open_count"
+private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
 
 /** The one launcher alias AndroidManifest.xml ships with android:enabled="true"; the other four
  *  are declared disabled. Needed to resolve COMPONENT_ENABLED_STATE_DEFAULT, which means "as the
@@ -181,4 +183,22 @@ class CyclePreferences(context: Context) {
     var ovulationReminderNotifiedForEpochDay: Long
         get() = prefs.getLong(KEY_OVULATION_REMINDER_NOTIFIED_FOR, 0L)
         set(value) = prefs.edit().putLong(KEY_OVULATION_REMINDER_NOTIFIED_FOR, value).apply()
+
+    /** How many times MainActivity has recorded a genuine cold start (see [recordAppOpen]) --
+     *  drives the FAB's extended text label for the first few sessions (CycleViewModel). */
+    var appOpenCount: Int
+        get() = prefs.getInt(KEY_APP_OPEN_COUNT, 0)
+        private set(value) = prefs.edit().putInt(KEY_APP_OPEN_COUNT, value).apply()
+
+    /** Called once per genuine app open (MainActivity, guarded by `savedInstanceState == null`
+     *  so a configuration-change recreation doesn't count as a new session). */
+    fun recordAppOpen() {
+        appOpenCount += 1
+    }
+
+    /** Whether the first-launch coach marks (CalendarScreen) have already been shown and
+     *  dismissed -- shown at most once, ever. */
+    var onboardingSeen: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_SEEN, false)
+        set(value) = prefs.edit().putBoolean(KEY_ONBOARDING_SEEN, value).apply()
 }

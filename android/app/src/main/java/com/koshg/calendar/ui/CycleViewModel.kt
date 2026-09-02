@@ -24,6 +24,10 @@ import java.time.LocalDate
 /** How many days a dismissed suggestion banner stays snoozed before it may reappear. */
 private const val SUGGESTION_SNOOZE_DAYS = 7L
 
+/** How many app opens the FAB keeps its "Добавить" text label for -- see
+ *  [CycleViewModel.showExtendedFabLabel]. */
+private const val FAB_LABEL_SESSION_THRESHOLD = 3
+
 @Immutable
 data class CycleUiState(
     val periods: List<PeriodEntry> = emptyList(),
@@ -64,6 +68,20 @@ class CycleViewModel(
     private val repository: CycleRepository,
     private val preferences: CyclePreferences
 ) : ViewModel() {
+
+    /** Fixed for this ViewModel's lifetime, not part of the reactive [uiState] below -- whether
+     *  the FAB should show its "Добавить" text label this app open. MainActivity records the
+     *  open (via [CyclePreferences.recordAppOpen]) before this ViewModel is first touched, so
+     *  the count read here already includes the current session. */
+    val showExtendedFabLabel: Boolean = preferences.appOpenCount <= FAB_LABEL_SESSION_THRESHOLD
+
+    /** Same one-shot idea as [showExtendedFabLabel]: whether the first-launch coach mark (the
+     *  History/Settings icons hint, see CalendarScreen) has never been shown and dismissed. */
+    val showOnboardingHint: Boolean = !preferences.onboardingSeen
+
+    fun markOnboardingSeen() {
+        preferences.onboardingSeen = true
+    }
 
     private val lutealPhaseDays = MutableStateFlow(preferences.lutealPhaseDays)
     private val adaptiveTheme = MutableStateFlow(preferences.adaptiveTheme)

@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shared across every palette's adaptive icon (see mipmap-anydpi-v26): a themed/monochrome
+         icon layer is always re-tinted and masked by the system to match the device's chosen
+         wallpaper colors, so per-palette color has no effect here regardless. A single flat
+         silhouette, same wave-glyph geometry as the foreground layers, covers all five. -->
+    <path
+        android:pathData="M14,74 C10,80 14,86 21,80 C31,62 45,58 55,68 C65,78 77,82 87,62"
+        android:strokeWidth="9"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18,66 C28,48 42,44 52,54 C62,64 74,68 84,48"
+        android:strokeWidth="8"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M21,60 C31,42 45,38 55,48 C65,58 77,62 87,42 C90,36 86,30 78,34"
+        android:strokeWidth="7"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
