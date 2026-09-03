@@ -35,8 +35,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -773,8 +774,7 @@ private fun CalendarMonthSection(
             }
         }
 
-        PhaseLegend()
-        MarkerLegend()
+        LegendSection()
 
         val proactiveSuggestion = remember(
             intimacyState.sexEntries,
@@ -1124,6 +1124,54 @@ private fun ExpandableLegend(entries: List<LegendEntry>, modifier: Modifier = Mo
                     color = appColors.textSecondary,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
                 )
+            }
+        }
+    }
+}
+
+/** The phase and marker legends, collapsed behind a single "Легенда" header by default -- shown
+ *  in full they're seven rows of dots and labels, useful mainly the first few times someone needs
+ *  to look up what a color means and otherwise just permanent clutter above an already busy grid. */
+@Composable
+private fun LegendSection() {
+    val appColors = appColors()
+    val haptics = LocalHaptics.current
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    haptics.perform(HapticEvent.Tap)
+                    expanded = !expanded
+                }
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+        ) {
+            Text(
+                "Легенда",
+                style = MaterialTheme.typography.labelSmall,
+                color = appColors.textSecondary
+            )
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Свернуть легенду" else "Развернуть легенду",
+                tint = appColors.textSecondary,
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .size(16.dp)
+                    .rotate(if (expanded) 180f else 0f)
+            )
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Column {
+                PhaseLegend()
+                MarkerLegend()
             }
         }
     }
@@ -1666,23 +1714,17 @@ private fun DayCell(
                 }
                 // Masturbation's own badge, independent of the partner-event ring above (opposite
                 // corner from the orgasm star so the two never overlap when both apply the same
-                // day) -- same icon used for it everywhere else in the app (IntimacySheets).
+                // day) -- a plain colored dot, not an icon: at this size (10dp) any glyph reads
+                // as an unrecognizable blob, so a solid circle in solo's own color is clearer.
                 if (hasMasturbation) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            .size(13.dp)
+                            .size(11.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.95f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.SelfImprovement,
-                            contentDescription = "Мастурбация",
-                            tint = appColors.solo,
-                            modifier = Modifier.size(10.dp)
-                        )
-                    }
+                            .background(appColors.solo)
+                            .border(1.5.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+                    )
                 }
             }
             if (dayEvents.isNotEmpty()) {
