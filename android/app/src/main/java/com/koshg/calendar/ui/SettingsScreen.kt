@@ -40,7 +40,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.security.AppLockPreferences
 import com.koshg.calendar.settings.PhaseFillStyle
+import com.koshg.calendar.haptics.HapticEvent
+import com.koshg.calendar.haptics.LocalHaptics
 import com.koshg.calendar.ui.theme.LocalThemeMode
+import com.koshg.calendar.ui.theme.MARKER_COLOR_PRESETS
+import com.koshg.calendar.ui.theme.MarkerColors
+import com.koshg.calendar.ui.theme.MarkerKind
+import com.koshg.calendar.ui.theme.colorFor
 import com.koshg.calendar.ui.theme.Palette
 import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.ui.theme.appColors
@@ -69,6 +75,12 @@ fun SettingsScreen(
     onImportData: () -> Unit,
     remindersEnabled: Boolean,
     onRemindersEnabledChange: (Boolean) -> Unit,
+    markerColors: MarkerColors,
+    onMarkerColorChange: (MarkerKind, Color) -> Unit,
+    onResetMarkerColors: () -> Unit,
+    legendVisibility: LegendVisibility,
+    onShowPhaseLegendChange: (Boolean) -> Unit,
+    onShowMarkerLegendChange: (Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val appColors = appColors()
@@ -119,6 +131,20 @@ fun SettingsScreen(
                         onThemeModeChange = onThemeModeChange
                     )
                 }
+                item {
+                    MarkerColorSection(
+                        markerColors = markerColors,
+                        onMarkerColorChange = onMarkerColorChange,
+                        onResetMarkerColors = onResetMarkerColors
+                    )
+                }
+                item {
+                    LegendSection(
+                        legendVisibility = legendVisibility,
+                        onShowPhaseLegendChange = onShowPhaseLegendChange,
+                        onShowMarkerLegendChange = onShowMarkerLegendChange
+                    )
+                }
                 item { CycleModelSection(lutealPhaseDays, onLutealPhaseDaysChange) }
                 item { SuggestionsSection(suggestionsEnabled, onSuggestionsEnabledChange) }
                 item { RemindersSection(remindersEnabled, onRemindersEnabledChange) }
@@ -160,6 +186,124 @@ private fun SecuritySection() {
                 }
             )
         }
+    }
+}
+
+/** The color of each day-cell marker ring, one swatch row per kind. Offered as a fixed set of
+ *  presets rather than a free color wheel on purpose: every preset clears all four phase fills by
+ *  lightness, so no pick can leave a ring invisible on the calendar. */
+@Composable
+private fun MarkerColorSection(
+    markerColors: MarkerColors,
+    onMarkerColorChange: (MarkerKind, Color) -> Unit,
+    onResetMarkerColors: () -> Unit
+) {
+    val appColors = appColors()
+    val haptics = LocalHaptics.current
+    SectionCard(title = "Цвета отметок") {
+        Text(
+            "Цвет кольца вокруг даты для каждого вида записи",
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textSecondary
+        )
+        Spacer(Modifier.height(12.dp))
+        MarkerKind.entries.forEach { kind ->
+            val selected = markerColors.colorFor(kind)
+            Text(
+                kind.label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = appColors.textPrimary
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MARKER_COLOR_PRESETS.forEach { preset ->
+                    val isSelected = preset == selected
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(preset)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.border(2.5.dp, appColors.textPrimary, CircleShape)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .clickable {
+                                haptics.perform(HapticEvent.Select)
+                                onMarkerColorChange(kind, preset)
+                            }
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+        OutlinedButton(
+            onClick = {
+                haptics.perform(HapticEvent.Tap)
+                onResetMarkerColors()
+            },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.textPrimary)
+        ) {
+            Text("Сбросить по умолчанию")
+        }
+    }
+}
+
+/** Which of the two calendar legends are shown under the month grid. Both on by default -- a new
+ *  user has no other way to learn what the colors mean -- and switchable off once they have. */
+@Composable
+private fun LegendSection(
+    legendVisibility: LegendVisibility,
+    onShowPhaseLegendChange: (Boolean) -> Unit,
+    onShowMarkerLegendChange: (Boolean) -> Unit
+) {
+    val appColors = appColors()
+    SectionCard(title = "Легенды") {
+        LegendToggleRow(
+            label = "Легенда фаз",
+            description = "Цвета фаз цикла под календарём",
+            checked = legendVisibility.phases,
+            onCheckedChange = onShowPhaseLegendChange
+        )
+        Spacer(Modifier.height(10.dp))
+        LegendToggleRow(
+            label = "Легенда отметок",
+            description = "Цвета колец: секс, предложения, соло",
+            checked = legendVisibility.markers,
+            onCheckedChange = onShowMarkerLegendChange
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Обе легенды раскрывают пояснение по нажатию на строку",
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textSecondary
+        )
+    }
+}
+
+@Composable
+private fun LegendToggleRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val appColors = appColors()
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = appColors.textSecondary
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

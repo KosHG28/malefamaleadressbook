@@ -42,6 +42,7 @@ import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.LocalMarkerColors
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.dayAgendaLabel
@@ -227,15 +228,17 @@ private fun PeriodRow(entry: PeriodEntry, onClick: () -> Unit) {
 
 @Composable
 private fun SexRow(entry: SexEntry, onClick: () -> Unit) {
-    val colors = appColors()
+    // Same colors the calendar's own marker rings use, so a day's ring and the row it expands
+    // into never disagree -- including after the user recolors a marker in Settings.
+    val colors = LocalMarkerColors.current
     val parts = buildList {
         add("Инициатор: ${Initiator.fromStorage(entry.initiator).label}")
         if (entry.orgasmCount > 0) add("Оргазмов: ${entry.orgasmCount}")
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
     AgendaRow(
-        leadingColor = colors.intimacy,
-        icon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = colors.intimacy, modifier = Modifier.size(20.dp)) },
+        leadingColor = colors.sex,
+        icon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = colors.sex, modifier = Modifier.size(20.dp)) },
         title = "Близость",
         subtitle = parts.joinToString(" · "),
         onClick = onClick
@@ -244,9 +247,9 @@ private fun SexRow(entry: SexEntry, onClick: () -> Unit) {
 
 @Composable
 private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
-    val colors = appColors()
+    val colors = LocalMarkerColors.current
     val accentColor = when {
-        !entry.answered -> colors.warning
+        !entry.answered -> colors.proposalPending
         entry.accepted -> colors.proposalAccepted
         else -> colors.proposalDeclined
     }
@@ -286,7 +289,7 @@ private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
 
 @Composable
 private fun MasturbationRow(entry: MasturbationEntry, onClick: () -> Unit) {
-    val colors = appColors()
+    val colors = LocalMarkerColors.current
     val parts = buildList {
         add(Initiator.fromStorage(entry.person).label)
         if (entry.orgasmCount > 0) add("Оргазмов: ${entry.orgasmCount}")

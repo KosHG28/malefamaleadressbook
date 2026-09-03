@@ -4,9 +4,14 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import com.koshg.calendar.reminders.ReminderScheduler
+import com.koshg.calendar.ui.theme.MarkerColors
+import com.koshg.calendar.ui.theme.MarkerKind
 import com.koshg.calendar.ui.theme.Palette
+import com.koshg.calendar.ui.theme.withColor
 import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
@@ -26,6 +31,13 @@ private const val KEY_PERIOD_REMINDER_NOTIFIED_FOR = "period_reminder_notified_f
 private const val KEY_OVULATION_REMINDER_NOTIFIED_FOR = "ovulation_reminder_notified_for_epoch_day"
 private const val KEY_APP_OPEN_COUNT = "app_open_count"
 private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
+private const val KEY_SHOW_PHASE_LEGEND = "show_phase_legend"
+private const val KEY_SHOW_MARKER_LEGEND = "show_marker_legend"
+private const val KEY_MARKER_COLOR_PREFIX = "marker_color_"
+
+/** Sentinel for "no override stored, use the default": a fully transparent color, which none of
+ *  [MARKER_COLOR_PRESETS] can ever be, so it can't collide with a real user pick. */
+private const val MARKER_COLOR_UNSET = 0
 
 /** The one launcher alias AndroidManifest.xml ships with android:enabled="true"; the other four
  *  are declared disabled. Needed to resolve COMPONENT_ENABLED_STATE_DEFAULT, which means "as the
@@ -201,4 +213,37 @@ class CyclePreferences(context: Context) {
     var onboardingSeen: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_SEEN, false)
         set(value) = prefs.edit().putBoolean(KEY_ONBOARDING_SEEN, value).apply()
+
+    /** Whether the cycle-phase color legend shows under the month grid. On by default: without it
+     *  nothing on a first run explains what the capsule colors mean. */
+    var showPhaseLegend: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_PHASE_LEGEND, true)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_PHASE_LEGEND, value).apply()
+
+    /** Same, for the day-marker (sex/proposal/solo) legend -- independent of [showPhaseLegend], so
+     *  either can be switched off once its colors are committed to memory. */
+    var showMarkerLegend: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_MARKER_LEGEND, true)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_MARKER_LEGEND, value).apply()
+
+    /** The marker ring colors, with any per-kind user override from Settings applied over the
+     *  defaults. Stored as plain ARGB ints, one key per kind. */
+    val markerColors: MarkerColors
+        get() = MarkerKind.entries.fold(MarkerColors()) { colors, kind ->
+            val stored = prefs.getInt(markerColorKey(kind), MARKER_COLOR_UNSET)
+            if (stored == MARKER_COLOR_UNSET) colors else colors.withColor(kind, Color(stored))
+        }
+
+    fun setMarkerColor(kind: MarkerKind, color: Color) {
+        prefs.edit().putInt(markerColorKey(kind), color.toArgb()).apply()
+    }
+
+    /** Drops every override so [markerColors] falls back to the built-in defaults again. */
+    fun resetMarkerColors() {
+        prefs.edit().apply {
+            MarkerKind.entries.forEach { remove(markerColorKey(it)) }
+        }.apply()
+    }
+
+    private fun markerColorKey(kind: MarkerKind): String = KEY_MARKER_COLOR_PREFIX + kind.name
 }
