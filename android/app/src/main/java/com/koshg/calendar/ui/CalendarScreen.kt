@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
@@ -773,6 +774,7 @@ private fun CalendarMonthSection(
         }
 
         PhaseLegend()
+        MarkerLegend()
 
         val proactiveSuggestion = remember(
             intimacyState.sexEntries,
@@ -1059,27 +1061,28 @@ private fun WeekdayHeader() {
     }
 }
 
+private data class LegendEntry(val label: String, val color: Color, val tooltip: String)
+
+/** A 2-column grid of color dots + labels, each tappable to reveal a short explanation below it
+ *  -- shared by [PhaseLegend] and [MarkerLegend] so both stay visually and behaviorally
+ *  consistent, and a new legend elsewhere in the app doesn't mean re-deriving this layout again.
+ *  Collapsed by default, only one entry open at a time. */
 @Composable
-private fun PhaseLegend() {
+private fun ExpandableLegend(entries: List<LegendEntry>, modifier: Modifier = Modifier) {
     val appColors = appColors()
     val haptics = LocalHaptics.current
-    // A dot and a label alone don't explain anything to someone who doesn't already know what
-    // each phase means -- tapping an entry reveals a short explanation instead, collapsed by
-    // default so the legend stays compact. Only one open at a time, same tap-to-reveal pattern as
-    // DayAgendaPanel's own phase tip (which this reuses the text of).
-    var expandedPhase by remember { mutableStateOf<CyclePhase?>(null) }
+    var expandedIndex by remember(entries) { mutableStateOf<Int?>(null) }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Row-major 2-column grid (2x2 for the four phases), each cell equal-width, so dots and
-        // labels line up on a consistent grid regardless of how long each phase's name is.
-        CyclePhase.entries.chunked(2).forEach { rowPhases ->
+        // Row-major 2-column grid, each cell equal-width, so dots and labels line up on a
+        // consistent grid regardless of how long each entry's label is.
+        entries.chunked(2).forEachIndexed { rowIndex, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowPhases.forEach { phase ->
+                row.forEachIndexed { colIndex, entry ->
+                    val index = rowIndex * 2 + colIndex
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1087,22 +1090,22 @@ private fun PhaseLegend() {
                             .weight(1f)
                             .clickable {
                                 haptics.perform(HapticEvent.Tap)
-                                expandedPhase = if (expandedPhase == phase) null else phase
+                                expandedIndex = if (expandedIndex == index) null else index
                             }
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(appColors.phaseColor(phase))
+                                .background(entry.color)
                         )
                         Text(
-                            text = phase.label,
+                            text = entry.label,
                             style = MaterialTheme.typography.labelSmall,
                             color = appColors.textSecondary
                         )
                     }
-                    if (rowPhases.size == 1) {
+                    if (row.size == 1) {
                         Spacer(Modifier.weight(1f))
                     }
                 }
@@ -1110,13 +1113,13 @@ private fun PhaseLegend() {
         }
 
         AnimatedVisibility(
-            visible = expandedPhase != null,
+            visible = expandedIndex != null,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
-            expandedPhase?.let { phase ->
+            expandedIndex?.let { index ->
                 Text(
-                    text = phaseTipForMen(phase),
+                    text = entries[index].tooltip,
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
@@ -1124,6 +1127,47 @@ private fun PhaseLegend() {
             }
         }
     }
+}
+
+@Composable
+private fun PhaseLegend() {
+    val appColors = appColors()
+    val entries = remember(appColors) {
+        CyclePhase.entries.map { phase ->
+            LegendEntry(phase.label, appColors.phaseColor(phase), phaseTipForMen(phase))
+        }
+    }
+    ExpandableLegend(entries, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+}
+
+/** What each colored ring/badge on a day cell means -- the ring/badge itself (DayCell) only has
+ *  room for color and weight, not a label, so a first-time (especially male) reader has nowhere
+ *  else to learn that pink means sex and green means solo. */
+@Composable
+private fun MarkerLegend() {
+    val appColors = appColors()
+    val entries = remember(appColors) {
+        listOf(
+            LegendEntry("Секс", appColors.intimacy, "Отмеченная близость в этот день."),
+            LegendEntry(
+                "Предложение принято",
+                appColors.proposalAccepted,
+                "Предложение близости было сделано и принято."
+            ),
+            LegendEntry(
+                "Предложение отклонено",
+                appColors.proposalDeclined,
+                "Предложение близости было сделано, но отклонено."
+            ),
+            LegendEntry(
+                "Предложение ожидает",
+                appColors.warning,
+                "Предложение сделано, но ответ ещё не отмечен."
+            ),
+            LegendEntry("Соло", appColors.solo, "Отмечена мастурбация в этот день.")
+        )
+    }
+    ExpandableLegend(entries, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
 }
 
 /** A dismissible, non-alarming nudge card -- see [computeProactiveSuggestion] for the triggers. */
@@ -1541,38 +1585,57 @@ private fun DayCell(
                     )
             )
         }
-        // A colored ring around the date -- rather than an icon underneath -- flags what
-        // happened that day: sex, an accepted/declined proposal, or masturbation (in that
-        // priority order, since at most one ring fits). Calendar-event colors stay as the
-        // small dots below, since those are a different, possibly-multi-valued kind of marker.
-        val markerColor = when (intimacyMarker) {
+        // A colored ring around the date flags a partner event that day -- sex, or an
+        // accepted/declined/pending proposal (in that priority order, since at most one ring
+        // fits). Masturbation is a separate channel (a small badge, below), not folded into this
+        // ring, so a solo entry on the same day as a partner event still shows -- it used to be
+        // silently dropped whenever any partner marker took the ring. Calendar-event colors stay
+        // as the small dots below the cell, since those are a different, possibly-multi-valued
+        // kind of marker.
+        val partnerMarkerColor = when (intimacyMarker) {
             IntimacyMarker.SEX -> appColors.intimacy
             IntimacyMarker.PROPOSAL_ACCEPTED -> appColors.proposalAccepted
             IntimacyMarker.PROPOSAL_DECLINED -> appColors.proposalDeclined
             IntimacyMarker.PROPOSAL_PENDING -> appColors.warning
-            IntimacyMarker.NONE -> if (hasMasturbation) appColors.solo else null
+            IntimacyMarker.NONE -> null
         }
+        // Weight (thickness + opacity), not just hue, carries meaning too -- a declined proposal
+        // reads as understated rather than shouting as loud as a completed sex/pending-response
+        // marker, useful on its own and not just for colorblind legibility.
+        val ringWidth = when (intimacyMarker) {
+            IntimacyMarker.SEX -> 2.6.dp
+            IntimacyMarker.PROPOSAL_ACCEPTED, IntimacyMarker.PROPOSAL_PENDING -> 2.2.dp
+            IntimacyMarker.PROPOSAL_DECLINED -> 1.5.dp
+            IntimacyMarker.NONE -> 1.8.dp
+        }
+        val ringAlpha = if (intimacyMarker == IntimacyMarker.PROPOSAL_DECLINED) 0.55f else 1f
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
-                // A white halo sits behind the colored marker ring so it stays legible even
-                // when the marker color is close in hue to the phase fill under it (e.g. a
-                // pink intimacy ring on a red menstrual day) -- most noticeable in light theme.
-                if (markerColor != null) {
+                // A thin white halo sits just behind the colored marker ring so it stays legible
+                // even when the marker color is close in hue to the phase fill under it (e.g. a
+                // pink intimacy ring on a red menstrual day). Deliberately thinner and only
+                // slightly larger than the ring itself -- it used to be thicker than the ring it
+                // was meant to support, so the white outline read as the marker and the actual
+                // color nearly disappeared.
+                if (partnerMarkerColor != null) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .border(2.2.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+                            .size(27.dp)
+                            .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
                     )
                 }
                 // The marker ring always renders at full brightness, regardless of the cell's
                 // own past/future/adjacent-month fade -- it flags an actual logged entry, not
                 // a prediction, so it should never read as dimmed.
                 when {
-                    isToday -> DottedRing(color = markerColor ?: textColor, size = 25.dp)
-                    markerColor != null -> Box(
+                    isToday -> DottedRing(
+                        color = partnerMarkerColor?.copy(alpha = ringAlpha) ?: textColor,
+                        size = 25.dp
+                    )
+                    partnerMarkerColor != null -> Box(
                         modifier = Modifier
                             .size(25.dp)
-                            .border(1.8.dp, markerColor, CircleShape)
+                            .border(ringWidth, partnerMarkerColor.copy(alpha = ringAlpha), CircleShape)
                     )
                 }
                 Text(
@@ -1597,6 +1660,26 @@ private fun DayCell(
                             Icons.Filled.Star,
                             contentDescription = "Оргазм",
                             tint = appColors.orgasmStar,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+                }
+                // Masturbation's own badge, independent of the partner-event ring above (opposite
+                // corner from the orgasm star so the two never overlap when both apply the same
+                // day) -- same icon used for it everywhere else in the app (IntimacySheets).
+                if (hasMasturbation) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .size(13.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.95f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.SelfImprovement,
+                            contentDescription = "Мастурбация",
+                            tint = appColors.solo,
                             modifier = Modifier.size(10.dp)
                         )
                     }

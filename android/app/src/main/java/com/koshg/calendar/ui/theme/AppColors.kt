@@ -173,7 +173,12 @@ private val LightAppColors = AppColors(
     intimacy = Color(0xFFE0577A),
     proposalAccepted = Color(0xFF9B6BD6),
     proposalDeclined = Color(0xFFB0A9A0),
-    solo = Color(0xFF9B6BD6),
+    // A distinct sage green -- previously the same purple as proposalAccepted, so a solo entry
+    // was indistinguishable from an accepted proposal at a glance. Every other hue in the
+    // palette is already spoken for (red/pink: menstrual+intimacy, blue: follicular, teal:
+    // ovulatory+fertile, purple: luteal+proposalAccepted, grey: declined, gold: orgasm, amber:
+    // warning/pending), so green is the one clearly free lane.
+    solo = Color(0xFF6B9B4F),
     warmBackground = Color(0xFFFBF3EA),
     warmSurface = Color(0xFFFFFDF9),
     gradientTop = Color(0xFFFFEFE1),
@@ -198,7 +203,7 @@ private val DarkAppColors = AppColors(
     intimacy = Color(0xFFF497B4),
     proposalAccepted = Color(0xFFCBA6F5),
     proposalDeclined = Color(0xFF8A8078),
-    solo = Color(0xFFCBA6F5),
+    solo = Color(0xFF9BD47A),
     warmBackground = Color(0xFF201C18),
     warmSurface = Color(0xFF2A2420),
     gradientTop = Color(0xFF4A211A),
