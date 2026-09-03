@@ -117,6 +117,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
+import kotlin.math.pow
 
 /** What the "+" FAB is currently editing/creating. Carries the pre-filled date for new entries. */
 sealed interface ActiveSheet {
@@ -1458,18 +1459,51 @@ private fun Modifier.dashedOutline(
     )
 }
 
-/** How many days out a predicted future day's fill has fully faded to its floor --
- *  roughly one forecast cycle, past which the fade holds flat instead of continuing indefinitely. */
+/** How many days out a predicted day's fill has drained to its floor -- roughly one forecast
+ *  cycle, past which the drain holds flat instead of continuing indefinitely. */
 private const val FUTURE_FADE_HORIZON_DAYS = 30f
 
-/** Floor for a far-future day's fill alpha -- low enough to read as "less certain" without the
- *  fill disappearing into the background. Higher in light theme: there the fade composites over a
- *  near-white background, so the same alpha bleaches a capsule far more than it dims one. */
-private const val MIN_FUTURE_FILL_ALPHA_DARK = 0.4f
-private const val MIN_FUTURE_FILL_ALPHA_LIGHT = 0.6f
+/** How much color a day's fill gives up to read as de-emphasised, per reason. De-emphasis is
+ *  desaturation at a constant lightness, never transparency: alpha toward the screen behind
+ *  bleaches a capsule over a light background and dims one over a dark background, so either way
+ *  the fill's composited lightness moves. A lightness-driven day-number color then flips between
+ *  white and dark ink partway along a single phase run -- days of one phase, one apparent color,
+ *  yet different digits -- because the fade crossed the threshold mid-run. Draining the color
+ *  instead leaves every filled cell at the lightness its phase color already had, so a single ink
+ *  color is correct for the entire grid and there is no threshold left to cross. */
+private const val FUTURE_MAX_DRAIN = 0.55f
+private const val ELAPSED_DRAIN = 0.3f
+private const val ADJACENT_MONTH_DRAIN = 0.75f
+
+/** An adjacent month's day number, on its by-then nearly grey capsule. Dimmer than the current
+ *  month's but not the 0.4 the fill itself used to carry -- the drained capsule says "other
+ *  month" on its own, so the digit only has to agree, not disappear. */
+private const val ADJACENT_MONTH_TEXT_ALPHA = 0.75f
+
+/** How far the predicted ovulation day's fill is lifted toward white, so it reads as a touch
+ *  brighter than its ovulatory-phase neighbours. Deliberately small: a lift is the one thing here
+ *  that does move a cell's lightness, and at the 0.3 it used to be it pushed the day's contrast
+ *  with the white number below what the rest of the grid holds. */
+private const val OVULATION_DAY_LIFT = 0.18f
 
 /** One thickness for every day-cell marker ring: the color alone says which kind it is. */
 private val MARKER_RING_WIDTH = 2.2.dp
+
+/** The grey that reads as light as this color does -- its relative luminance carried back through
+ *  the sRGB transfer curve. */
+private fun Color.toNeutral(): Color {
+    val y = luminance()
+    val channel = if (y <= 0.0031308f) y * 12.92f else 1.055f * y.pow(1f / 2.4f) - 0.055f
+    val v = channel.coerceIn(0f, 1f)
+    return Color(v, v, v)
+}
+
+/** Gives up [fraction] of this color's saturation while holding how light it reads, the one
+ *  de-emphasis channel the day grid uses -- see the drain constants above for why not alpha. */
+private fun Color.drained(fraction: Float): Color {
+    val f = fraction.coerceIn(0f, 1f)
+    return if (f == 0f) this else lerp(this, toNeutral(), f)
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1510,61 +1544,51 @@ private fun DayCell(
     // A flat, single color per phase -- only changes at the phase boundary, never within a run.
     val phaseColor = phase?.let { appColors.phaseColor(it) }
     val isDashed = phaseFillStyle == PhaseFillStyle.DASHED
-    // Every day with a known phase fills solid -- upcoming (predicted) days at full strength,
-    // since what's coming up is the whole point of a forecast calendar, while already-elapsed
-    // days fade back a touch to keep the emphasis forward-looking.
+    // Every day with a known phase fills solid, at full opacity whatever its emphasis. What a
+    // de-emphasised day gives up is saturation, not opacity: the three reasons a day can be
+    // played down each drain some of its color, and they compound on whatever color is left.
+    // The one exception is a day with no phase at all, whose surface is a background tone rather
+    // than a color -- there is no saturation there to drain, so it still recedes by alpha.
     val monthAlpha = if (inCurrentMonth) 1f else 0.4f
-    // Alpha over a near-white light-theme background doesn't read as "dimmed", it reads as
-    // washed-out pastel, so the light theme fades noticeably less than the dark one on both the
-    // elapsed-day dim and the far-future floor below.
-    val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
-    val pastDayFade = if (dark) 0.6f else 0.8f
-    val minFutureFill = if (dark) MIN_FUTURE_FILL_ALPHA_DARK else MIN_FUTURE_FILL_ALPHA_LIGHT
-    val contentAlpha = monthAlpha * (if (isFuture) 1f else pastDayFade)
 
-    // The further out a predicted day sits, the less certain that prediction is -- fading its
-    // fill (never the day-number text, see textColor below) communicates that visually. Ramps down
-    // to minFutureFill by FUTURE_FADE_HORIZON_DAYS out (roughly one full forecast cycle), then
-    // holds flat rather than fading indefinitely.
+    // The further out a predicted day sits, the less certain that prediction is, and the less
+    // color its fill keeps. Ramps to FUTURE_MAX_DRAIN by FUTURE_FADE_HORIZON_DAYS out (roughly
+    // one full forecast cycle), then holds flat rather than draining indefinitely.
     val daysAhead = if (isFuture) ChronoUnit.DAYS.between(LocalDate.now(), date) else 0L
-    val futureFillFade = if (isFuture) {
-        val t = (daysAhead.toFloat() / FUTURE_FADE_HORIZON_DAYS).coerceIn(0f, 1f)
-        1f - t * (1f - minFutureFill)
+    val futureDrain = if (isFuture) {
+        (daysAhead.toFloat() / FUTURE_FADE_HORIZON_DAYS).coerceIn(0f, 1f) * FUTURE_MAX_DRAIN
     } else {
-        1f
+        0f
     }
-    val fillAlpha = contentAlpha * futureFillFade
+    // Elapsed days hold their color a little less firmly than upcoming ones -- what's coming up is
+    // the point of a forecast calendar -- and an adjacent month's days nearly let go of it, which
+    // is what marks them as outside the month being read.
+    val elapsedDrain = if (isFuture) 0f else ELAPSED_DRAIN
+    val monthDrain = if (inCurrentMonth) 0f else ADJACENT_MONTH_DRAIN
+    val drain = 1f - (1f - futureDrain) * (1f - elapsedDrain) * (1f - monthDrain)
 
     // The predicted ovulation day gets a lightened fill and a soft glow behind the cell instead
     // of a badge icon -- a day that just looks subtly brighter than its ovulatory-phase
     // neighbors, rather than one more small icon to parse.
-    val fillColor = if (isOvulationDay && phaseColor != null) {
-        lerp(phaseColor, Color.White, 0.3f)
+    val baseFill = if (isOvulationDay && phaseColor != null) {
+        lerp(phaseColor, Color.White, OVULATION_DAY_LIFT)
     } else {
         phaseColor
     }
+    val fillColor = baseFill?.drained(drain)
 
-    // Picked from how light the fill *actually ends up* once its alpha is composited over the
-    // screen behind it, not from whether a fill exists at all. A day used to always take white
-    // text the moment it had any phase, which held up in dark theme but left white numbers on
-    // light theme's pale, faded capsules almost unreadable.
-    val backdrop = lerp(appColors.gradientTop, appColors.gradientBottom, 0.5f)
-    val effectiveFill = if (fillColor != null && !isDashed) {
-        lerp(backdrop, fillColor, fillAlpha)
-    } else {
-        null
-    }
-    val textColor = when {
-        effectiveFill == null -> appColors.textPrimary
-        effectiveFill.luminance() > 0.45f -> appColors.textPrimary
-        else -> Color.White
-    }
+    // No threshold, because there is nothing left for one to decide: draining color never changes
+    // how light a fill reads, so every filled cell in the grid sits in the same narrow lightness
+    // band its phase colors were chosen in, and white is the right ink on all of them. A cell with
+    // no phase at all is a different kind of cell -- no capsule, background-toned surface -- and
+    // takes the normal ink.
+    val textColor = if (fillColor != null && !isDashed) Color.White else appColors.textPrimary
 
     val cellModifier = when {
         fillColor != null && !isDashed -> Modifier
             .clip(runShape)
-            .background(fillColor.copy(alpha = fillAlpha))
-        fillColor != null -> Modifier.dashedOutline(fillColor.copy(alpha = fillAlpha))
+            .background(fillColor)
+        fillColor != null -> Modifier.dashedOutline(fillColor)
         else -> Modifier
             .clip(pillShape)
             .background(appColors.warmSurface.copy(alpha = monthAlpha))
@@ -1689,8 +1713,10 @@ private fun DayCell(
                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.SemiBold,
                     // Only the adjacent-month dim applies here, not the elapsed/far-future one:
                     // the fill already carries "past" and "less certain", and fading the number
-                    // on top of an already-faded capsule just made it hard to read.
-                    color = textColor.copy(alpha = monthAlpha)
+                    // on top of an already-drained capsule just made it hard to read.
+                    color = textColor.copy(
+                        alpha = if (inCurrentMonth) 1f else ADJACENT_MONTH_TEXT_ALPHA
+                    )
                 )
                 // A small gold star badge flags a day with a logged orgasm (sex or solo) --
                 // a fixed color independent of the phase/marker palette so it always pops, on a

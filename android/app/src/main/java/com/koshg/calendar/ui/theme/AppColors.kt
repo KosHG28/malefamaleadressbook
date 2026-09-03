@@ -185,7 +185,11 @@ private val LightAppColors = AppColors(
     gradientBottom = Color(0xFFFCE1EC),
     menstrual = Color(0xFFEF5D80),
     follicular = Color(0xFF6E8FDB),
-    ovulatory = Color(0xFF1FB8AC),
+    // Deeper than the teal it replaces (was 0xFF1FB8AC). The day grid writes its numbers in one
+    // ink color on every filled cell, which works because the four phase colors sit in a narrow
+    // lightness band -- and the old teal sat well outside it, light enough that a white number on
+    // it had noticeably less contrast than on any other phase.
+    ovulatory = Color(0xFF16998F),
     luteal = Color(0xFFA262E0),
     textPrimary = Color(0xFF2A211C),
     textSecondary = Color(0xFF8A7A6E),
