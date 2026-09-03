@@ -17,6 +17,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -67,6 +68,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
@@ -97,6 +99,7 @@ import com.koshg.calendar.ui.theme.LocalThemeMode
 import com.koshg.calendar.ui.theme.MarkerKind
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.phaseColor
+import com.koshg.calendar.ui.theme.resolveDark
 import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.CycleStats
 import com.koshg.calendar.util.ProactiveSuggestion
@@ -166,11 +169,17 @@ fun CalendarScreen(
         null
     }
 
+    // Marker presets are theme-independent (the user's pick); resolving them to concrete colors
+    // here means nothing downstream has to know a preset carries a light/dark pair.
+    val markerColors = cycleState.markerPresets.resolve(
+        cycleState.themeMode.resolveDark(isSystemInDarkTheme())
+    )
+
     CompositionLocalProvider(
         LocalPalette provides cycleState.palette,
         LocalThemeMode provides cycleState.themeMode,
         LocalAdaptivePhase provides adaptivePhase,
-        LocalMarkerColors provides cycleState.markerColors
+        LocalMarkerColors provides markerColors
     ) {
         CalendarScreenContent(viewModel, cycleViewModel, intimacyViewModel, cycleState)
     }
@@ -522,9 +531,9 @@ private fun CalendarScreenContent(
             },
             remindersEnabled = cycleState.remindersEnabled,
             onRemindersEnabledChange = onRemindersEnabledChange,
-            markerColors = cycleState.markerColors,
-            onMarkerColorChange = cycleViewModel::setMarkerColor,
-            onResetMarkerColors = cycleViewModel::resetMarkerColors,
+            markerPresets = cycleState.markerPresets,
+            onMarkerPresetChange = cycleViewModel::setMarkerPreset,
+            onResetMarkerPresets = cycleViewModel::resetMarkerPresets,
             legendVisibility = cycleState.legendVisibility,
             onShowPhaseLegendChange = cycleViewModel::setShowPhaseLegend,
             onShowMarkerLegendChange = cycleViewModel::setShowMarkerLegend,
@@ -1449,13 +1458,15 @@ private fun Modifier.dashedOutline(
     )
 }
 
-/** How many days out a predicted future day's fill has fully faded to [MIN_FUTURE_FILL_ALPHA] --
+/** How many days out a predicted future day's fill has fully faded to its floor --
  *  roughly one forecast cycle, past which the fade holds flat instead of continuing indefinitely. */
 private const val FUTURE_FADE_HORIZON_DAYS = 30f
 
 /** Floor for a far-future day's fill alpha -- low enough to read as "less certain" without the
- *  fill disappearing into the background on the muted palettes (Graphite, Plum). */
-private const val MIN_FUTURE_FILL_ALPHA = 0.4f
+ *  fill disappearing into the background. Higher in light theme: there the fade composites over a
+ *  near-white background, so the same alpha bleaches a capsule far more than it dims one. */
+private const val MIN_FUTURE_FILL_ALPHA_DARK = 0.4f
+private const val MIN_FUTURE_FILL_ALPHA_LIGHT = 0.6f
 
 /** One thickness for every day-cell marker ring: the color alone says which kind it is. */
 private val MARKER_RING_WIDTH = 2.2.dp
@@ -1503,25 +1514,26 @@ private fun DayCell(
     // since what's coming up is the whole point of a forecast calendar, while already-elapsed
     // days fade back a touch to keep the emphasis forward-looking.
     val monthAlpha = if (inCurrentMonth) 1f else 0.4f
-    val contentAlpha = monthAlpha * (if (isFuture) 1f else 0.6f)
+    // Alpha over a near-white light-theme background doesn't read as "dimmed", it reads as
+    // washed-out pastel, so the light theme fades noticeably less than the dark one on both the
+    // elapsed-day dim and the far-future floor below.
+    val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
+    val pastDayFade = if (dark) 0.6f else 0.8f
+    val minFutureFill = if (dark) MIN_FUTURE_FILL_ALPHA_DARK else MIN_FUTURE_FILL_ALPHA_LIGHT
+    val contentAlpha = monthAlpha * (if (isFuture) 1f else pastDayFade)
 
     // The further out a predicted day sits, the less certain that prediction is -- fading its
-    // fill (never the day-number text, which stays at contentAlpha for legibility) communicates
-    // that visually. Ramps down to MIN_FUTURE_FILL_ALPHA by FUTURE_FADE_HORIZON_DAYS out (roughly
-    // one full forecast cycle), then holds flat rather than fading indefinitely.
+    // fill (never the day-number text, see textColor below) communicates that visually. Ramps down
+    // to minFutureFill by FUTURE_FADE_HORIZON_DAYS out (roughly one full forecast cycle), then
+    // holds flat rather than fading indefinitely.
     val daysAhead = if (isFuture) ChronoUnit.DAYS.between(LocalDate.now(), date) else 0L
     val futureFillFade = if (isFuture) {
         val t = (daysAhead.toFloat() / FUTURE_FADE_HORIZON_DAYS).coerceIn(0f, 1f)
-        1f - t * (1f - MIN_FUTURE_FILL_ALPHA)
+        1f - t * (1f - minFutureFill)
     } else {
         1f
     }
     val fillAlpha = contentAlpha * futureFillFade
-
-    val textColor = when {
-        phaseColor != null && !isDashed -> Color.White
-        else -> appColors.textPrimary
-    }
 
     // The predicted ovulation day gets a lightened fill and a soft glow behind the cell instead
     // of a badge icon -- a day that just looks subtly brighter than its ovulatory-phase
@@ -1530,6 +1542,22 @@ private fun DayCell(
         lerp(phaseColor, Color.White, 0.3f)
     } else {
         phaseColor
+    }
+
+    // Picked from how light the fill *actually ends up* once its alpha is composited over the
+    // screen behind it, not from whether a fill exists at all. A day used to always take white
+    // text the moment it had any phase, which held up in dark theme but left white numbers on
+    // light theme's pale, faded capsules almost unreadable.
+    val backdrop = lerp(appColors.gradientTop, appColors.gradientBottom, 0.5f)
+    val effectiveFill = if (fillColor != null && !isDashed) {
+        lerp(backdrop, fillColor, fillAlpha)
+    } else {
+        null
+    }
+    val textColor = when {
+        effectiveFill == null -> appColors.textPrimary
+        effectiveFill.luminance() > 0.45f -> appColors.textPrimary
+        else -> Color.White
     }
 
     val cellModifier = when {
@@ -1544,10 +1572,12 @@ private fun DayCell(
 
     val glowModifier = if (isOvulationDay && phaseColor != null) {
         Modifier.drawBehind {
-            val glowRadius = size.height * 1.5f
+            // Kept close to the cell: at 1.5x the cell height this spilled well past the capsule
+            // and read as a smudge on the calendar, most obviously in light theme.
+            val glowRadius = size.height * 0.9f
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(appColors.ovulatory.copy(alpha = 0.55f), appColors.ovulatory.copy(alpha = 0f)),
+                    colors = listOf(appColors.ovulatory.copy(alpha = 0.4f), appColors.ovulatory.copy(alpha = 0f)),
                     radius = glowRadius
                 ),
                 radius = glowRadius
@@ -1657,7 +1687,10 @@ private fun DayCell(
                     text = date.dayOfMonth.toString(),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.SemiBold,
-                    color = textColor.copy(alpha = contentAlpha)
+                    // Only the adjacent-month dim applies here, not the elapsed/far-future one:
+                    // the fill already carries "past" and "less certain", and fading the number
+                    // on top of an already-faded capsule just made it hard to read.
+                    color = textColor.copy(alpha = monthAlpha)
                 )
                 // A small gold star badge flags a day with a logged orgasm (sex or solo) --
                 // a fixed color independent of the phase/marker palette so it always pops, on a

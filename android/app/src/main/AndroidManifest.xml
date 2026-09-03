@@ -7,6 +7,8 @@
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:backupAgent=".backup.CalendarBackupAgent"
+        android:fullBackupOnly="true"
         android:icon="@mipmap/ic_launcher_wine"
         android:roundIcon="@mipmap/ic_launcher_wine"
         android:label="@string/app_name"

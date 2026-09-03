@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 /**
  * The kinds of day-cell marker a calendar ring can stand for. Distinct from the phase colors,
  * which carry fixed medical meaning -- these are the user's own logged activity, and their colors
- * are user-overridable in Settings (see [MarkerColors]).
+ * are user-overridable in Settings (see [MarkerPresets]).
  */
 enum class MarkerKind(val label: String) {
     SEX("Секс"),
@@ -17,28 +17,74 @@ enum class MarkerKind(val label: String) {
     SOLO("Соло")
 }
 
-// Defaults. The ring is drawn on top of a phase capsule whose color changes day to day, so what
-// matters most isn't hue but *lightness*: each of these is clearly darker or clearly brighter than
-// all four phase fills (pink/red menstrual, blue follicular, teal ovulatory, purple luteal), and
-// none sits in a phase's own hue lane.
-val MARKER_DEFAULT_SEX = Color(0xFFB0143C) // кармин
-val MARKER_DEFAULT_ACCEPTED = Color(0xFF7CC020) // лайм
-val MARKER_DEFAULT_DECLINED = Color(0xFF5A5A5A) // графит
-val MARKER_DEFAULT_PENDING = Color(0xFFE8A020) // янтарь
-val MARKER_DEFAULT_SOLO = Color(0xFF2A3E9E) // индиго
-
 /**
- * The five marker colors currently in force. One value per kind rather than a light/dark pair:
- * every option is chosen to read on any phase fill in either theme, so the user's pick doesn't
- * silently become something else when the theme flips.
+ * A marker color the user can pick, as a light/dark pair rather than one value.
+ *
+ * The ring is drawn on top of a phase capsule, and those capsules are near-pastel in light theme
+ * but deep in dark theme -- a single value tuned for one reads wrong in the other (the first cut
+ * of this used one value each, and the dark-tuned carmine/indigo/graphite landed as heavy ink
+ * blots on the light theme's pale fills). The user still picks once: the pick is the *preset*,
+ * and the theme decides which of its two values is painted.
  */
+enum class MarkerPreset(private val light: Color, private val dark: Color) {
+    CARMINE(Color(0xFFC2185B), Color(0xFFF0537A)),
+    SCARLET(Color(0xFFE04A2F), Color(0xFFFF8163)),
+    AMBER(Color(0xFFD98A00), Color(0xFFFFC14D)),
+    YELLOW(Color(0xFFB79A00), Color(0xFFF0DC4E)),
+    LIME(Color(0xFF5FA015), Color(0xFFA6E04A)),
+    EMERALD(Color(0xFF16794A), Color(0xFF45C98A)),
+    INDIGO(Color(0xFF3A4FB5), Color(0xFF8A9BFF)),
+    MAGENTA(Color(0xFFB01A96), Color(0xFFF062D8)),
+    GRAPHITE(Color(0xFF5A5A5A), Color(0xFFA8A8A8)),
+    INK(Color(0xFF24262B), Color(0xFFD8D8D8));
+
+    fun color(dark: Boolean): Color = if (dark) this.dark else this.light
+}
+
+/** Which preset each marker kind is set to -- the user's actual choice, independent of theme. */
+@Immutable
+data class MarkerPresets(
+    val sex: MarkerPreset = MarkerPreset.CARMINE,
+    val proposalAccepted: MarkerPreset = MarkerPreset.LIME,
+    val proposalDeclined: MarkerPreset = MarkerPreset.GRAPHITE,
+    val proposalPending: MarkerPreset = MarkerPreset.AMBER,
+    val solo: MarkerPreset = MarkerPreset.INDIGO
+) {
+    /** The concrete colors to paint with under the current theme. */
+    fun resolve(dark: Boolean): MarkerColors = MarkerColors(
+        sex = sex.color(dark),
+        proposalAccepted = proposalAccepted.color(dark),
+        proposalDeclined = proposalDeclined.color(dark),
+        proposalPending = proposalPending.color(dark),
+        solo = solo.color(dark)
+    )
+}
+
+fun MarkerPresets.presetFor(kind: MarkerKind): MarkerPreset = when (kind) {
+    MarkerKind.SEX -> sex
+    MarkerKind.PROPOSAL_ACCEPTED -> proposalAccepted
+    MarkerKind.PROPOSAL_DECLINED -> proposalDeclined
+    MarkerKind.PROPOSAL_PENDING -> proposalPending
+    MarkerKind.SOLO -> solo
+}
+
+fun MarkerPresets.withPreset(kind: MarkerKind, preset: MarkerPreset): MarkerPresets = when (kind) {
+    MarkerKind.SEX -> copy(sex = preset)
+    MarkerKind.PROPOSAL_ACCEPTED -> copy(proposalAccepted = preset)
+    MarkerKind.PROPOSAL_DECLINED -> copy(proposalDeclined = preset)
+    MarkerKind.PROPOSAL_PENDING -> copy(proposalPending = preset)
+    MarkerKind.SOLO -> copy(solo = preset)
+}
+
+/** The five marker colors already resolved for the current theme -- what the calendar, the marker
+ *  legend and the day-agenda rows all paint from, so none of them can disagree. */
 @Immutable
 data class MarkerColors(
-    val sex: Color = MARKER_DEFAULT_SEX,
-    val proposalAccepted: Color = MARKER_DEFAULT_ACCEPTED,
-    val proposalDeclined: Color = MARKER_DEFAULT_DECLINED,
-    val proposalPending: Color = MARKER_DEFAULT_PENDING,
-    val solo: Color = MARKER_DEFAULT_SOLO
+    val sex: Color = MarkerPreset.CARMINE.color(dark = false),
+    val proposalAccepted: Color = MarkerPreset.LIME.color(dark = false),
+    val proposalDeclined: Color = MarkerPreset.GRAPHITE.color(dark = false),
+    val proposalPending: Color = MarkerPreset.AMBER.color(dark = false),
+    val solo: Color = MarkerPreset.INDIGO.color(dark = false)
 )
 
 fun MarkerColors.colorFor(kind: MarkerKind): Color = when (kind) {
@@ -49,30 +95,6 @@ fun MarkerColors.colorFor(kind: MarkerKind): Color = when (kind) {
     MarkerKind.SOLO -> solo
 }
 
-fun MarkerColors.withColor(kind: MarkerKind, color: Color): MarkerColors = when (kind) {
-    MarkerKind.SEX -> copy(sex = color)
-    MarkerKind.PROPOSAL_ACCEPTED -> copy(proposalAccepted = color)
-    MarkerKind.PROPOSAL_DECLINED -> copy(proposalDeclined = color)
-    MarkerKind.PROPOSAL_PENDING -> copy(proposalPending = color)
-    MarkerKind.SOLO -> copy(solo = color)
-}
-
-/** The swatches offered in Settings. Deliberately a curated list rather than a free color wheel:
- *  every entry here clears the phase fills by lightness, so no pick can end up invisible on the
- *  calendar. Teal, mid-blue and lavender are absent on purpose -- those are the phases' own. */
-val MARKER_COLOR_PRESETS: List<Color> = listOf(
-    Color(0xFFB0143C), // кармин
-    Color(0xFFE8402A), // алый
-    Color(0xFFE8A020), // янтарь
-    Color(0xFFD8C81E), // жёлтый
-    Color(0xFF7CC020), // лайм
-    Color(0xFF1E8A4C), // изумруд
-    Color(0xFF2A3E9E), // индиго
-    Color(0xFFC2189E), // маджента
-    Color(0xFF5A5A5A), // графит
-    Color(0xFF1A1A1A) // почти чёрный
-)
-
-/** Provided once at the top of the app (see CalendarScreen) so day cells and the marker legend
- *  resolve the same, possibly user-customized, colors without threading them through every call. */
+/** Provided once at the top of the app (see CalendarScreen), already resolved for the active
+ *  theme, so nothing downstream has to know about light/dark pairs. */
 val LocalMarkerColors = compositionLocalOf { MarkerColors() }

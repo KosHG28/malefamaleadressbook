@@ -4,14 +4,13 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import com.koshg.calendar.reminders.ReminderScheduler
-import com.koshg.calendar.ui.theme.MarkerColors
 import com.koshg.calendar.ui.theme.MarkerKind
+import com.koshg.calendar.ui.theme.MarkerPreset
+import com.koshg.calendar.ui.theme.MarkerPresets
 import com.koshg.calendar.ui.theme.Palette
-import com.koshg.calendar.ui.theme.withColor
+import com.koshg.calendar.ui.theme.withPreset
 import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.util.DEFAULT_LUTEAL_PHASE_DAYS
 
@@ -33,11 +32,7 @@ private const val KEY_APP_OPEN_COUNT = "app_open_count"
 private const val KEY_ONBOARDING_SEEN = "onboarding_seen"
 private const val KEY_SHOW_PHASE_LEGEND = "show_phase_legend"
 private const val KEY_SHOW_MARKER_LEGEND = "show_marker_legend"
-private const val KEY_MARKER_COLOR_PREFIX = "marker_color_"
-
-/** Sentinel for "no override stored, use the default": a fully transparent color, which none of
- *  [MARKER_COLOR_PRESETS] can ever be, so it can't collide with a real user pick. */
-private const val MARKER_COLOR_UNSET = 0
+private const val KEY_MARKER_PRESET_PREFIX = "marker_preset_"
 
 /** The one launcher alias AndroidManifest.xml ships with android:enabled="true"; the other four
  *  are declared disabled. Needed to resolve COMPONENT_ENABLED_STATE_DEFAULT, which means "as the
@@ -226,24 +221,27 @@ class CyclePreferences(context: Context) {
         get() = prefs.getBoolean(KEY_SHOW_MARKER_LEGEND, true)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_MARKER_LEGEND, value).apply()
 
-    /** The marker ring colors, with any per-kind user override from Settings applied over the
-     *  defaults. Stored as plain ARGB ints, one key per kind. */
-    val markerColors: MarkerColors
-        get() = MarkerKind.entries.fold(MarkerColors()) { colors, kind ->
-            val stored = prefs.getInt(markerColorKey(kind), MARKER_COLOR_UNSET)
-            if (stored == MARKER_COLOR_UNSET) colors else colors.withColor(kind, Color(stored))
+    /** Which color preset each marker kind is set to, with any user override from Settings applied
+     *  over the defaults. The preset name is stored rather than a color value, so the same choice
+     *  resolves to its light or dark variant as the theme changes. An unrecognized name (a preset
+     *  renamed in a later version) falls back to the default rather than throwing. */
+    val markerPresets: MarkerPresets
+        get() = MarkerKind.entries.fold(MarkerPresets()) { presets, kind ->
+            val stored = prefs.getString(markerPresetKey(kind), null)
+            val preset = stored?.let { name -> MarkerPreset.entries.firstOrNull { it.name == name } }
+            if (preset == null) presets else presets.withPreset(kind, preset)
         }
 
-    fun setMarkerColor(kind: MarkerKind, color: Color) {
-        prefs.edit().putInt(markerColorKey(kind), color.toArgb()).apply()
+    fun setMarkerPreset(kind: MarkerKind, preset: MarkerPreset) {
+        prefs.edit().putString(markerPresetKey(kind), preset.name).apply()
     }
 
-    /** Drops every override so [markerColors] falls back to the built-in defaults again. */
-    fun resetMarkerColors() {
+    /** Drops every override so [markerPresets] falls back to the built-in defaults again. */
+    fun resetMarkerPresets() {
         prefs.edit().apply {
-            MarkerKind.entries.forEach { remove(markerColorKey(it)) }
+            MarkerKind.entries.forEach { remove(markerPresetKey(it)) }
         }.apply()
     }
 
-    private fun markerColorKey(kind: MarkerKind): String = KEY_MARKER_COLOR_PREFIX + kind.name
+    private fun markerPresetKey(kind: MarkerKind): String = KEY_MARKER_PRESET_PREFIX + kind.name
 }

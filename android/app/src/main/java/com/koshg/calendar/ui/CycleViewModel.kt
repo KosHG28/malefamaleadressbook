@@ -1,7 +1,6 @@
 package com.koshg.calendar.ui
 
 import androidx.compose.runtime.Immutable
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,8 +8,9 @@ import com.koshg.calendar.data.CycleRepository
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.settings.CyclePreferences
 import com.koshg.calendar.settings.PhaseFillStyle
-import com.koshg.calendar.ui.theme.MarkerColors
 import com.koshg.calendar.ui.theme.MarkerKind
+import com.koshg.calendar.ui.theme.MarkerPreset
+import com.koshg.calendar.ui.theme.MarkerPresets
 import com.koshg.calendar.ui.theme.Palette
 import com.koshg.calendar.ui.theme.ThemeMode
 import com.koshg.calendar.util.CycleStats
@@ -43,7 +43,7 @@ data class CycleUiState(
     val suggestionDismissedUntilEpochDay: Long = 0L,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val remindersEnabled: Boolean = false,
-    val markerColors: MarkerColors = MarkerColors(),
+    val markerPresets: MarkerPresets = MarkerPresets(),
     val legendVisibility: LegendVisibility = LegendVisibility()
 )
 
@@ -65,7 +65,7 @@ private data class DisplayPrefs(
     val suggestionDismissedUntilEpochDay: Long,
     val themeMode: ThemeMode,
     val remindersEnabled: Boolean,
-    val markerColors: MarkerColors,
+    val markerPresets: MarkerPresets,
     val legendVisibility: LegendVisibility
 )
 
@@ -106,7 +106,7 @@ class CycleViewModel(
     private val suggestionDismissedUntilEpochDay = MutableStateFlow(preferences.suggestionDismissedUntilEpochDay)
     private val themeMode = MutableStateFlow(preferences.themeMode)
     private val remindersEnabled = MutableStateFlow(preferences.remindersEnabled)
-    private val markerColors = MutableStateFlow(preferences.markerColors)
+    private val markerPresets = MutableStateFlow(preferences.markerPresets)
     private val legendVisibility = MutableStateFlow(
         LegendVisibility(preferences.showPhaseLegend, preferences.showMarkerLegend)
     )
@@ -118,7 +118,7 @@ class CycleViewModel(
     }
 
     private val displayPrefs = combine(
-        baseDisplayPrefs, themeMode, remindersEnabled, markerColors, legendVisibility
+        baseDisplayPrefs, themeMode, remindersEnabled, markerPresets, legendVisibility
     ) { base, mode, remindersOn, markers, legends ->
         DisplayPrefs(
             base.adaptiveTheme,
@@ -147,7 +147,7 @@ class CycleViewModel(
             suggestionDismissedUntilEpochDay = prefs.suggestionDismissedUntilEpochDay,
             themeMode = prefs.themeMode,
             remindersEnabled = prefs.remindersEnabled,
-            markerColors = prefs.markerColors,
+            markerPresets = prefs.markerPresets,
             legendVisibility = prefs.legendVisibility
         )
     }.stateIn(
@@ -162,7 +162,7 @@ class CycleViewModel(
             suggestionDismissedUntilEpochDay = preferences.suggestionDismissedUntilEpochDay,
             themeMode = preferences.themeMode,
             remindersEnabled = preferences.remindersEnabled,
-            markerColors = preferences.markerColors,
+            markerPresets = preferences.markerPresets,
             legendVisibility = LegendVisibility(
                 preferences.showPhaseLegend,
                 preferences.showMarkerLegend
@@ -216,15 +216,15 @@ class CycleViewModel(
         remindersEnabled.value = enabled
     }
 
-    fun setMarkerColor(kind: MarkerKind, color: Color) {
-        preferences.setMarkerColor(kind, color)
-        markerColors.value = preferences.markerColors
+    fun setMarkerPreset(kind: MarkerKind, preset: MarkerPreset) {
+        preferences.setMarkerPreset(kind, preset)
+        markerPresets.value = preferences.markerPresets
     }
 
     /** Drops every per-marker color override back to the built-in defaults. */
-    fun resetMarkerColors() {
-        preferences.resetMarkerColors()
-        markerColors.value = preferences.markerColors
+    fun resetMarkerPresets() {
+        preferences.resetMarkerPresets()
+        markerPresets.value = preferences.markerPresets
     }
 
     fun setShowPhaseLegend(show: Boolean) {
