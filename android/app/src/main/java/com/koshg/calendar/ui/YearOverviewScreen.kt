@@ -2,10 +2,12 @@ package com.koshg.calendar.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -24,13 +26,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.calendar.data.PeriodEntry
+import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.haptics.HapticEvent
 import com.koshg.calendar.haptics.LocalHaptics
+import com.koshg.calendar.ui.theme.LocalMarkerColors
+import com.koshg.calendar.ui.theme.MarkerKind
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.ui.theme.colorFor
 import com.koshg.calendar.ui.theme.phaseColor
+import com.koshg.calendar.util.CyclePhase
 import com.koshg.calendar.util.cyclePhaseFor
 import com.koshg.calendar.util.monthYearLabel
 import java.time.YearMonth
@@ -39,6 +47,10 @@ import java.time.YearMonth
  * A 12-month-at-a-glance overview -- each month renders as a tiny mosaic of phase colors (no day
  * numbers, no weekday alignment, just a quick heat-map read of the year) so jumping to a distant
  * month doesn't mean paging through the main calendar one month at a time.
+ *
+ * Days carry the same marker rings the month grid draws, in the same colors and by the same
+ * priority ([markerKindFor]), so a year of intimacy reads at a glance too -- that is most of what
+ * makes a year view worth opening, and without it a whole year of entries was invisible here.
  */
 @Composable
 fun YearOverviewScreen(
@@ -46,6 +58,9 @@ fun YearOverviewScreen(
     periods: List<PeriodEntry>,
     marginDays: Int,
     lutealPhaseDays: Int,
+    sexDates: Set<String>,
+    proposalByDate: Map<String, ProposalEntry>,
+    masturbationDates: Set<String>,
     onClose: () -> Unit,
     onMonthClick: (YearMonth) -> Unit
 ) {
@@ -113,6 +128,9 @@ fun YearOverviewScreen(
                         periods = periods,
                         marginDays = marginDays,
                         lutealPhaseDays = lutealPhaseDays,
+                        sexDates = sexDates,
+                        proposalByDate = proposalByDate,
+                        masturbationDates = masturbationDates,
                         onClick = {
                             haptics.perform(HapticEvent.Select)
                             onMonthClick(month)
@@ -126,18 +144,38 @@ fun YearOverviewScreen(
     }
 }
 
+/** The marker ring inside a mosaic day, as a fraction of the day's own circle, plus the halo just
+ *  outside it. Fractions rather than dp because the mosaic sizes its days by dividing the card
+ *  width seven ways, so their diameter follows the screen. */
+private const val MOSAIC_RING_FRACTION = 0.56f
+private const val MOSAIC_RING_HALO_FRACTION = 0.64f
+private val MOSAIC_RING_WIDTH = 2.dp
+
+/** One day of the mosaic: what phase it fell in, and which marker ring (if any) it earned. */
+private data class MosaicDay(val phase: CyclePhase?, val marker: MarkerKind?)
+
 @Composable
 private fun MonthMosaic(
     month: YearMonth,
     periods: List<PeriodEntry>,
     marginDays: Int,
     lutealPhaseDays: Int,
+    sexDates: Set<String>,
+    proposalByDate: Map<String, ProposalEntry>,
+    masturbationDates: Set<String>,
     onClick: () -> Unit
 ) {
     val appColors = appColors()
-    val dayPhases = remember(month, periods, marginDays, lutealPhaseDays) {
+    val markerColors = LocalMarkerColors.current
+    val days = remember(
+        month, periods, marginDays, lutealPhaseDays, sexDates, proposalByDate, masturbationDates
+    ) {
         (1..month.lengthOfMonth()).map { day ->
-            cyclePhaseFor(month.atDay(day), periods, marginDays, lutealPhaseDays)
+            val date = month.atDay(day)
+            MosaicDay(
+                phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays),
+                marker = markerKindFor(date.toString(), sexDates, proposalByDate, masturbationDates)
+            )
         }
     }
 
@@ -156,21 +194,45 @@ private fun MonthMosaic(
             color = appColors.textPrimary
         )
         Spacer(Modifier.height(6.dp))
-        dayPhases.chunked(7).forEach { week ->
+        days.chunked(7).forEach { week ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                week.forEach { phase ->
+                week.forEach { day ->
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .aspectRatio(1f)
-                            // Percent-based, like every other round element in the app (legend
-                            // dots, day-cell pills) -- a plain square read as out of place here.
-                            .clip(RoundedCornerShape(50))
-                            .background(phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground)
-                    )
+                            .aspectRatio(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                // Percent-based, like every other round element in the app (legend
+                                // dots, day-cell pills) -- a plain square read as out of place here.
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    day.phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground
+                                )
+                        )
+                        // Inset rather than drawn on the day's own edge: with only 2dp between
+                        // neighbours, edge rings on two marked days in a row would touch and read
+                        // as one shape. The white halo does the same job as the month grid's --
+                        // keeps the ring visible when its color sits close to the fill beneath it.
+                        day.marker?.let { marker ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(MOSAIC_RING_HALO_FRACTION)
+                                    .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(MOSAIC_RING_FRACTION)
+                                    .border(MOSAIC_RING_WIDTH, markerColors.colorFor(marker), CircleShape)
+                            )
+                        }
+                    }
                 }
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
             }

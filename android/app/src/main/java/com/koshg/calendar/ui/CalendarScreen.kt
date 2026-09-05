@@ -98,6 +98,7 @@ import com.koshg.calendar.ui.theme.LocalPalette
 import com.koshg.calendar.ui.theme.LocalThemeMode
 import com.koshg.calendar.ui.theme.MarkerKind
 import com.koshg.calendar.ui.theme.appColors
+import com.koshg.calendar.ui.theme.colorFor
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.ui.theme.resolveDark
 import com.koshg.calendar.util.CyclePhase
@@ -135,7 +136,27 @@ sealed interface ActiveSheet {
     data class PeriodRangeDraft(val start: LocalDate, val end: LocalDate) : ActiveSheet
 }
 
-internal enum class IntimacyMarker { NONE, SEX, PROPOSAL_ACCEPTED, PROPOSAL_DECLINED, PROPOSAL_PENDING }
+/**
+ * Which single marker ring a day gets when it could have several. Sex outranks a proposal -- it
+ * says what happened, not what was asked -- and a proposal outranks solo. `null` means no ring.
+ *
+ * One function rather than one rule per screen: the month grid and the year mosaic paint the same
+ * days, so a day that reads "секс" in one and "соло" in the other would just be a bug waiting to
+ * be reported. The day's full contents are always there by tapping it (DayAgendaPanel).
+ */
+internal fun markerKindFor(
+    dateKey: String,
+    sexDates: Set<String>,
+    proposalByDate: Map<String, ProposalEntry>,
+    masturbationDates: Set<String>
+): MarkerKind? = when {
+    dateKey in sexDates -> MarkerKind.SEX
+    proposalByDate[dateKey]?.answered == false -> MarkerKind.PROPOSAL_PENDING
+    proposalByDate[dateKey]?.accepted == true -> MarkerKind.PROPOSAL_ACCEPTED
+    proposalByDate.containsKey(dateKey) -> MarkerKind.PROPOSAL_DECLINED
+    dateKey in masturbationDates -> MarkerKind.SOLO
+    else -> null
+}
 
 private data class GridDayInfo(
     val date: LocalDate,
@@ -503,6 +524,9 @@ private fun CalendarScreenContent(
             periods = cycleState.periods,
             marginDays = cycleState.stats.appliedMarginDays,
             lutealPhaseDays = cycleState.lutealPhaseDays,
+            sexDates = sexByDate.keys,
+            proposalByDate = proposalByDate,
+            masturbationDates = masturbationDates,
             onClose = { showYearOverview = false },
             onMonthClick = { month ->
                 viewModel.setViewMonth(month)
@@ -1396,13 +1420,7 @@ private fun MonthGrid(
                     }
 
                     val dateKey = info.date.toString()
-                    val marker = when {
-                        sexByDate.containsKey(dateKey) -> IntimacyMarker.SEX
-                        proposalByDate[dateKey]?.answered == false -> IntimacyMarker.PROPOSAL_PENDING
-                        proposalByDate[dateKey]?.accepted == true -> IntimacyMarker.PROPOSAL_ACCEPTED
-                        proposalByDate.containsKey(dateKey) -> IntimacyMarker.PROPOSAL_DECLINED
-                        else -> IntimacyMarker.NONE
-                    }
+                    val marker = markerKindFor(dateKey, sexByDate.keys, proposalByDate, masturbationDates)
 
                     DayCell(
                         date = info.date,
@@ -1418,8 +1436,7 @@ private fun MonthGrid(
                         accentColor = accentColor,
                         hasOrgasm = dateKey in orgasmDates,
                         dayEvents = eventsByDate[dateKey].orEmpty(),
-                        intimacyMarker = marker,
-                        hasMasturbation = dateKey in masturbationDates,
+                        markerKind = marker,
                         isDragHighlighted = dragRange?.let { info.date in it } == true,
                         onClick = { onDayClick(info.date) },
                         onLongClick = { onDayLongClick(info.date) },
@@ -1474,13 +1491,19 @@ private const val FUTURE_FADE_HORIZON_DAYS = 30f
  *  yet different digits -- because the fade crossed the threshold mid-run. Draining the color
  *  instead leaves every filled cell at the lightness its phase color already had, so a single ink
  *  color is correct for the entire grid and there is no threshold left to cross. */
-private const val FUTURE_MAX_DRAIN = 0.55f
+private const val FUTURE_MAX_DRAIN = 0.35f
 private const val ELAPSED_DRAIN = 0.3f
-private const val ADJACENT_MONTH_DRAIN = 0.75f
+private const val ADJACENT_MONTH_DRAIN = 0.3f
 
-/** An adjacent month's day number, on its by-then nearly grey capsule. Dimmer than the current
- *  month's but not the 0.4 the fill itself used to carry -- the drained capsule says "other
- *  month" on its own, so the digit only has to agree, not disappear. */
+/** However many reasons stack up on one day, its fill gives up at most this much of its color.
+ *  The reasons compound, and at the first cut an adjacent month's far-future days collected enough
+ *  of them to land almost fully grey -- which read as a different kind of day altogether rather
+ *  than a quieter one. De-emphasis is meant to recede, not to strip a day of what phase it is. */
+private const val MAX_TOTAL_DRAIN = 0.5f
+
+/** An adjacent month's day number, on its by-then muted capsule. Dimmer than the current month's
+ *  but not the 0.4 the fill itself used to carry -- the drained capsule says "other month" on its
+ *  own, so the digit only has to agree, not disappear. */
 private const val ADJACENT_MONTH_TEXT_ALPHA = 0.75f
 
 /** How far the predicted ovulation day's fill is lifted toward white, so it reads as a touch
@@ -1524,8 +1547,7 @@ private fun DayCell(
     accentColor: Color,
     hasOrgasm: Boolean,
     dayEvents: List<CalendarEvent>,
-    intimacyMarker: IntimacyMarker,
-    hasMasturbation: Boolean,
+    markerKind: MarkerKind?,
     isDragHighlighted: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -1568,7 +1590,8 @@ private fun DayCell(
     // is what marks them as outside the month being read.
     val elapsedDrain = if (isFuture) 0f else ELAPSED_DRAIN
     val monthDrain = if (inCurrentMonth) 0f else ADJACENT_MONTH_DRAIN
-    val drain = 1f - (1f - futureDrain) * (1f - elapsedDrain) * (1f - monthDrain)
+    val drain = (1f - (1f - futureDrain) * (1f - elapsedDrain) * (1f - monthDrain))
+        .coerceAtMost(MAX_TOTAL_DRAIN)
 
     // The predicted ovulation day gets a lightened fill and a soft glow behind the cell instead
     // of a badge icon -- a day that just looks subtly brighter than its ovulatory-phase
@@ -1669,19 +1692,11 @@ private fun DayCell(
             )
         }
         // One colored ring around the date per day, and nothing else -- no corner badges beyond
-        // the orgasm star. Priority when a day has several: sex, then the proposal states, then
-        // solo; the day's full contents are always visible by tapping it (DayAgendaPanel).
-        // Calendar-event colors stay as the small dots below the cell, since those are a
-        // different, possibly-multi-valued kind of marker.
+        // the orgasm star (see [markerKindFor] for which one a day gets). Calendar-event colors
+        // stay as the small dots below the cell, since those are a different, possibly
+        // multi-valued kind of marker.
         val markerColors = LocalMarkerColors.current
-        val markerColor = when {
-            intimacyMarker == IntimacyMarker.SEX -> markerColors.sex
-            intimacyMarker == IntimacyMarker.PROPOSAL_ACCEPTED -> markerColors.proposalAccepted
-            intimacyMarker == IntimacyMarker.PROPOSAL_DECLINED -> markerColors.proposalDeclined
-            intimacyMarker == IntimacyMarker.PROPOSAL_PENDING -> markerColors.proposalPending
-            hasMasturbation -> markerColors.solo
-            else -> null
-        }
+        val markerColor = markerKind?.let { markerColors.colorFor(it) }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
                 // A thin white halo sits just behind the colored marker ring so it stays legible
