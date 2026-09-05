@@ -20,15 +20,22 @@
   ul { padding-left: 1.3em; }
   li { margin-bottom: 0.4em; }
   code { background: rgba(0,0,0,0.06); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  .langs { margin: 0 0 24px; font-size: 0.95rem; }
+  .langs a { color: #b0245c; }
+  hr { border: 0; border-top: 1px solid rgba(0,0,0,0.12); margin: 3em 0; }
   @media (prefers-color-scheme: dark) {
     body { background: #120d0b; color: #f5ede8; }
     .updated { color: #b8a99c; }
     code { background: rgba(255,255,255,0.12); }
+    .langs a { color: #ff5c8a; }
+    hr { border-top-color: rgba(255,255,255,0.16); }
   }
 </style>
 </head>
 <body>
 <main>
+  <p class="langs"><strong>Русский</strong> · <a href="#english">English</a></p>
+
   <h1>Политика конфиденциальности Interlude</h1>
   <p class="updated">Дата вступления в силу: 5 сентября 2026 г.</p>
 
@@ -130,6 +137,109 @@
     Вопросы о конфиденциальности и запросы, связанные с этой политикой:
     <a href="mailto:koshg28+interlude@gmail.com">koshg28+interlude@gmail.com</a>
   </p>
+
+  <hr>
+
+  <section id="english" lang="en">
+  <p class="langs"><a href="#top">Русский</a> · <strong>English</strong></p>
+
+  <h1>Interlude Privacy Policy</h1>
+  <p class="updated">Effective date: 5 September 2026</p>
+
+  <p>
+    Interlude (&ldquo;the app&rdquo;) is an Android calendar app with a menstrual cycle tracker
+    and a private intimacy journal for a couple. This page explains what data the app handles
+    and how.
+  </p>
+
+  <h2>In short</h2>
+  <ul>
+    <li>Everything you enter is stored only on your own device.</li>
+    <li>The app does not send your data to any server &mdash; not to the developer, not to
+      anyone else.</li>
+    <li>There is no analytics, no advertising and no tracking of any kind.</li>
+    <li>The developer has no access to your data and technically never sees it.</li>
+  </ul>
+
+  <h2>What data the app handles</h2>
+  <p>Everything you enter by hand through the add-entry forms:</p>
+  <ul>
+    <li>period start dates;</li>
+    <li>intimacy entries (date, who started it, orgasms counted per person, a note);</li>
+    <li>intimacy proposals (date, who proposed, accepted / declined / awaiting an answer,
+      reason for declining, a note);</li>
+    <li>masturbation entries (date, who, number of orgasms, a note);</li>
+    <li>ordinary calendar events (title, date, time, a note);</li>
+    <li>app settings (color scheme, theme, luteal phase length and so on).</li>
+  </ul>
+  <p>
+    The estimated ovulation date, the fertile window and the next-period forecast are computed
+    by the app from the period dates you entered. Those calculations happen entirely on the
+    device.
+  </p>
+
+  <h2>Where the data is stored</h2>
+  <p>
+    In a local database (Room/SQLite) and in the app&rsquo;s settings on your device. The app does
+    not request internet permission and has no sync or cloud storage of its own.
+  </p>
+
+  <h2>The one exception &mdash; Android&rsquo;s own Auto Backup</h2>
+  <p>
+    If system backup is switched on in your phone (Settings &rarr; Google &rarr; Backup), the
+    Android operating system itself &mdash; with no involvement from the app&rsquo;s code &mdash;
+    may save the app&rsquo;s database and settings into your Google account, so they can be
+    restored after a reinstall or on a new phone. This is a standard Android mechanism
+    (<code>android:allowBackup</code> / <code>dataExtractionRules</code>), controlled and switched
+    off by you in the phone&rsquo;s system settings rather than in the app. The developer has no
+    access to that backup.
+  </p>
+
+  <h2>Manual export</h2>
+  <p>
+    The app&rsquo;s settings offer a manual export of every entry to a JSON file, and an import
+    back. The export is saved wherever you choose through the system file dialog &mdash; local
+    storage or a cloud service such as Google Drive, entirely your choice. The app never sends
+    that file anywhere by itself.
+  </p>
+
+  <h2>Permissions the app requests</h2>
+  <ul>
+    <li><strong>Vibration (VIBRATE)</strong> &mdash; for haptic feedback while using the
+      interface. Unrelated to data transfer.</li>
+    <li><strong>Notifications (POST_NOTIFICATIONS)</strong> &mdash; for local reminders about an
+      approaching period and the estimated ovulation day, if you switched that on in settings.
+      The notifications are composed and shown entirely on the device, with no server.</li>
+  </ul>
+  <p>
+    The app can also use the device&rsquo;s biometrics or its PIN/pattern/password to lock the app
+    itself, if you switched that on. That goes through Android&rsquo;s own API and gives the app no
+    access to the biometric data.
+  </p>
+
+  <h2>Deleting data</h2>
+  <p>
+    Any individual entry can be deleted inside the app. Uninstalling the app removes everything
+    stored locally, completely and irreversibly &mdash; except where the system Auto Backup is
+    switched on, in which case the last backup stays in your Google account until you delete it
+    there, in your Google account settings.
+  </p>
+
+  <h2>Children</h2>
+  <p>The app is not intended for children and is not directed at a child audience.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    If how the app handles data changes materially, this page will be updated and the effective
+    date at the top changed with it.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Privacy questions and requests relating to this policy:
+    <a href="mailto:koshg28+interlude@gmail.com">koshg28+interlude@gmail.com</a>
+  </p>
+  </section>
 </main>
 </body>
 </html>

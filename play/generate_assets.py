@@ -91,7 +91,16 @@ def load_font(name, size):
     return ImageFont.truetype(f"{FONT_DIR}/{name}", size)
 
 
-def build_feature_graphic(w=1024, h=500):
+# Play serves a feature graphic per language, so the banner carries its copy per locale.
+FEATURE_COPY = {
+    "ru": ("Цикл и близость —", "в одном календаре",
+           "Без аккаунта. Без интернета. Только на телефоне."),
+    "en": ("Cycle and intimacy —", "in one calendar",
+           "No account. No internet. Only on your phone."),
+}
+
+
+def build_feature_graphic(lang="ru", w=1024, h=500):
     """Play crops this differently across surfaces, so the wordmark and tagline stay well inside
     the middle and nothing load-bearing touches an edge."""
     big_w, big_h = w * SS, h * SS
@@ -110,17 +119,19 @@ def build_feature_graphic(w=1024, h=500):
     tagline = load_font("Outfit-Regular.ttf", int(38 * SS))
     sub = load_font("Outfit-Regular.ttf", int(28 * SS))
 
+    line1, line2, footer = FEATURE_COPY[lang]
     x = int(72 * SS)
     draw.text((x, int(150 * SS)), "Interlude", font=title, fill=(0x2A, 0x21, 0x1C))
-    draw.text((x, int(268 * SS)), "Цикл и близость —", font=tagline, fill=(0xB0, 0x24, 0x5C))
-    draw.text((x, int(316 * SS)), "в одном календаре", font=tagline, fill=(0xB0, 0x24, 0x5C))
-    draw.text((x, int(378 * SS)), "Без аккаунта. Без интернета. Только на телефоне.",
-              font=sub, fill=(0x8A, 0x7A, 0x6E))
+    draw.text((x, int(268 * SS)), line1, font=tagline, fill=(0xB0, 0x24, 0x5C))
+    draw.text((x, int(316 * SS)), line2, font=tagline, fill=(0xB0, 0x24, 0x5C))
+    draw.text((x, int(378 * SS)), footer, font=sub, fill=(0x8A, 0x7A, 0x6E))
 
     return img.resize((w, h), Image.LANCZOS)
 
 
 if __name__ == "__main__":
     build_icon().save(f"{OUT_DIR}/icon-512.png", "PNG")
-    build_feature_graphic().save(f"{OUT_DIR}/feature-graphic-1024x500.png", "PNG")
-    print("wrote icon-512.png and feature-graphic-1024x500.png")
+    # The icon is language-neutral and serves both listings; the banner is not.
+    for lang in FEATURE_COPY:
+        build_feature_graphic(lang).save(f"{OUT_DIR}/feature-graphic-1024x500-{lang}.png", "PNG")
+    print("wrote icon-512.png and a feature graphic per language")
