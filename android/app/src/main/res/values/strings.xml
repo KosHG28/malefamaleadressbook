@@ -66,9 +66,9 @@
     <!-- Phase tips: one is picked per day, deterministically. Pools may differ in length
          between languages; the picker takes the index modulo whatever it loads. -->
     <string-array name="phase_tips_menstrual">
-        <item>Cramps and low energy are likely. Care without pressure lands better right now — a hot water bottle, tea, a blanket, a film together — and don't push for intimacy unless she brings it up.</item>
+        <item>Cramps and low energy are likely. Care without pressure lands better right now — a hot water bottle, tea, a blanket, a film together — and don\'t push for intimacy unless she brings it up.</item>
         <item>Her body is recovering, so there may be less energy than usual. Quietly taking over the household chores is real support, no speech required.</item>
-        <item>Discomfort and irritability these days are physiology, not about you. Don't take sharpness personally.</item>
+        <item>Discomfort and irritability these days are physiology, not about you. Don\'t take sharpness personally.</item>
         <item>A good moment to offer a hot water bottle or a painkiller if she forgot, rather than waiting to be asked.</item>
     </string-array>
     <string-array name="phase_tips_follicular">
@@ -97,7 +97,7 @@
 
     <!-- Proactive suggestion. %1$s is the idea below. -->
     <string name="suggestion_title">An idea for the evening</string>
-    <string name="suggestion_long_absence">There hasn't been an intimacy entry in a while. How about a relaxed evening — %1$s?</string>
+    <string name="suggestion_long_absence">There hasn\'t been an intimacy entry in a while. How about a relaxed evening — %1$s?</string>
     <string name="suggestion_fatigue">Tiredness comes up often in the recent declines. It may be worth planning more rest — %1$s.</string>
     <string name="suggestion_both">It has been a while since any intimacy, and tiredness comes up often in the recent declines. How about a quiet evening together — %1$s?</string>
     <string name="suggestion_idea_massage_liked">a massage with nothing expected to follow, say — you both enjoyed that before</string>
@@ -134,7 +134,7 @@
     <string name="agenda_initiator">Initiator: %1$s</string>
     <string name="agenda_from">From: %1$s</string>
     <string name="agenda_my_orgasms">My orgasms: %1$d</string>
-    <string name="agenda_partner_orgasms">Partner's orgasms: %1$d</string>
+    <string name="agenda_partner_orgasms">Partner\'s orgasms: %1$d</string>
     <string name="agenda_orgasms">Orgasms: %1$d</string>
     <string name="agenda_proposal_pending">awaiting an answer</string>
     <string name="agenda_proposal_accepted">accepted</string>
@@ -172,7 +172,7 @@
     <string name="field_decline_reason">Reason for declining</string>
     <string name="field_custom_reason">Your own reason</string>
     <string name="field_my_orgasms">My orgasms</string>
-    <string name="field_partner_orgasms">Partner's orgasms</string>
+    <string name="field_partner_orgasms">Partner\'s orgasms</string>
     <string name="field_orgasm_count">Number of orgasms</string>
     <string name="answer_accepted">Accepted</string>
     <string name="answer_declined">Declined</string>
@@ -197,7 +197,7 @@
     <string name="settings_marker_legend_hint">Ring colors: intimacy, proposals, solo</string>
     <string name="settings_legends_note">Tapping a row in either legend opens an explanation</string>
     <string name="settings_section_color_scheme">Color scheme</string>
-    <string name="settings_color_scheme_hint">Button accent and calendar background — phase colors don't change</string>
+    <string name="settings_color_scheme_hint">Button accent and calendar background — phase colors don\'t change</string>
     <string name="settings_preview">Preview</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_theme">Theme</string>
@@ -227,7 +227,7 @@
     <string name="settings_section_about">About</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_about_local">All data (cycles, intimacy, events) is stored only on this device and is never sent anywhere.</string>
-    <string name="settings_about_backup">If Android backup is switched on in the system, data may be saved to the device's Google account — the OS does this itself, without the app taking part; it is turned off in the phone's system settings.</string>
+    <string name="settings_about_backup">If Android backup is switched on in the system, data may be saved to the device\'s Google account — the OS does this itself, without the app taking part; it is turned off in the phone\'s system settings.</string>
     <!-- Calendar screen -->
     <string name="calendar_cycle_day">Cycle, day %1$d</string>
     <string name="calendar_cycle">Cycle</string>
@@ -269,14 +269,14 @@
     <string name="legend_sex_tip">Intimacy logged on this day.</string>
     <string name="legend_accepted_tip">An intimacy proposal was made and accepted.</string>
     <string name="legend_declined_tip">An intimacy proposal was made but declined.</string>
-    <string name="legend_pending_tip">A proposal was made, but the answer hasn't been recorded yet.</string>
+    <string name="legend_pending_tip">A proposal was made, but the answer hasn\'t been recorded yet.</string>
     <string name="legend_solo_tip">Masturbation logged on this day. If there was intimacy the same day, the ring shows that instead — the full contents of the day are visible by tapping the date.</string>
 
     <!-- Data export / import results -->
-    <string name="data_open_write_failed">Couldn't open the file for writing</string>
+    <string name="data_open_write_failed">Couldn\'t open the file for writing</string>
     <string name="data_saved">Data saved</string>
-    <string name="data_save_failed">Couldn't save the data</string>
-    <string name="data_open_read_failed">Couldn't open the file for reading</string>
+    <string name="data_save_failed">Couldn\'t save the data</string>
+    <string name="data_open_read_failed">Couldn\'t open the file for reading</string>
     <string name="data_loaded">Data loaded</string>
-    <string name="data_read_failed">Couldn't read the file</string>
+    <string name="data_read_failed">Couldn\'t read the file</string>
 </resources>
