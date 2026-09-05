@@ -12,7 +12,7 @@
     <!-- Cycle phases -->
     <string name="phase_menstrual">Menstruation</string>
     <string name="phase_follicular">Follicular</string>
-    <string name="phase_ovulatory">Ovulation</string>
+    <string name="phase_ovulatory">Fertile window</string>
     <string name="phase_luteal">Luteal</string>
 
     <!-- Who -->

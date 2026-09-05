@@ -9,7 +9,7 @@
     <!-- Фазы цикла -->
     <string name="phase_menstrual">Менструация</string>
     <string name="phase_follicular">Фолликулярная</string>
-    <string name="phase_ovulatory">Овуляция</string>
+    <string name="phase_ovulatory">Фертильное окно</string>
     <string name="phase_luteal">Лютеиновая</string>
 
     <!-- Кто -->

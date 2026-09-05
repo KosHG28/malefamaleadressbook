@@ -9,15 +9,32 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sqrt
 
-/** Population-median cycle length, used only when there is no history at all to learn from. */
-const val DEFAULT_CYCLE_LENGTH_DAYS = 29
+/**
+ * Cycle length assumed only until there is history to learn from, after which the forecast
+ * replaces it entirely.
+ *
+ * 28 rather than the population median (~29): with no history this number is not a measurement
+ * of anyone, it is the placeholder every other cycle calculator also starts from, and a lone
+ * user comparing this app against a handful of websites should see the same date rather than one
+ * shifted by a day for a reason no screen explains. Once two periods are logged, [forecastCycleLength]
+ * takes over and this constant stops mattering.
+ */
+const val DEFAULT_CYCLE_LENGTH_DAYS = 28
 
 /**
- * Luteal phase (ovulation → next period) length. 13 days tracks the population median more
- * closely than the commonly quoted "14" and is the default; pass a different value to
- * [computeCycleStats] / [cyclePhaseFor] for someone who knows their own norm.
+ * Luteal phase (ovulation → next period) length: ovulation is predicted this many days before the
+ * next period starts.
+ *
+ * 14 is the near-universal convention -- every consumer cycle calculator computes
+ * `ovulation = next period − 14`. The population median is closer to 13, and this used to be 13
+ * for that reason, but the extra half-day of theoretical accuracy is not worth being one day out
+ * of step with every tool a user might check against: the difference is well inside the
+ * uncertainty of a calendar prediction, while the disagreement is plainly visible.
+ *
+ * Anyone who knows their own luteal length can set it in Settings, which is where that
+ * accuracy actually belongs.
  */
-const val DEFAULT_LUTEAL_PHASE_DAYS = 13
+const val DEFAULT_LUTEAL_PHASE_DAYS = 14
 
 /** EWMA smoothing factor for the cycle-length forecast — higher reacts faster, lower is steadier. */
 private const val EWMA_ALPHA = 0.2
