@@ -13,8 +13,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -31,6 +34,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.interlude.R
 import com.koshg.interlude.backup.BackupStatus
+import com.koshg.interlude.diagnostics.CrashLog
 import com.koshg.interlude.haptics.HapticEvent
 import com.koshg.interlude.haptics.LocalHaptics
 import com.koshg.interlude.security.AppLockPreferences
@@ -714,5 +719,54 @@ private fun AboutSection() {
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
+        CrashReportRow()
+    }
+}
+
+/**
+ * Shows the last crash's stack trace, and only appears when there is one.
+ *
+ * This build is installed from a GitHub release rather than from Play, so nothing collects crash
+ * reports on its own. Without this, a crash leaves nothing behind but a phone that closed itself,
+ * which is not something a fix can be built from.
+ */
+@Composable
+private fun CrashReportRow() {
+    val context = LocalContext.current
+    val crashLog = remember(context) { CrashLog(context) }
+    var trace by remember { mutableStateOf(crashLog.read()) }
+    val current = trace ?: return
+    val appColors = appColors()
+
+    Spacer(Modifier.height(14.dp))
+    Text(
+        stringResource(R.string.settings_crash_title),
+        style = MaterialTheme.typography.labelLarge,
+        color = appColors.warning
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.settings_crash_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = appColors.textSecondary
+    )
+    Spacer(Modifier.height(8.dp))
+    SelectionContainer {
+        Text(
+            current,
+            style = MaterialTheme.typography.bodySmall,
+            color = appColors.textPrimary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 260.dp)
+                .verticalScroll(rememberScrollState())
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    TextButton(onClick = {
+        crashLog.clear()
+        trace = null
+    }) {
+        Text(stringResource(R.string.settings_crash_clear))
     }
 }

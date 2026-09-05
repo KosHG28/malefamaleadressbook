@@ -109,10 +109,13 @@ import com.koshg.interlude.util.CyclePhase
 import com.koshg.interlude.util.CycleStats
 import com.koshg.interlude.util.ProactiveSuggestion
 import com.koshg.interlude.util.computeProactiveSuggestion
+import com.koshg.interlude.util.cycleModelOf
 import com.koshg.interlude.util.cyclePhaseFor
 import com.koshg.interlude.util.cyclePhaseProgressFor
 import com.koshg.interlude.util.monthYearLabel
 import com.koshg.interlude.util.ovulationDateFor
+import com.koshg.interlude.util.ovulationFor
+import com.koshg.interlude.util.phaseFor
 import com.koshg.interlude.util.phaseTipForMen
 import com.koshg.interlude.util.toLocalDateOrNull
 import com.koshg.interlude.util.weekdayShortNames
@@ -1325,11 +1328,14 @@ private fun MonthGrid(
     // resize the grid.
     val weeks = 6
 
-    val gridDays = remember(viewMonth, periods, marginDays, lutealPhaseDays) {
+    // One model per page rather than one per day: the grid asks 44 times, and each raw-list call
+    // re-parses and re-sorts the whole period history before it can answer.
+    val cycleModel = remember(periods) { cycleModelOf(periods) }
+    val gridDays = remember(viewMonth, cycleModel, marginDays, lutealPhaseDays) {
         (0 until weeks * 7).map { i ->
             val date = gridStart.plusDays(i.toLong())
-            val phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays)
-            val isOvulationDay = date == ovulationDateFor(date, periods, lutealPhaseDays)
+            val phase = cycleModel.phaseFor(date, marginDays, lutealPhaseDays)
+            val isOvulationDay = date == cycleModel.ovulationFor(date, lutealPhaseDays)
             GridDayInfo(date, phase, date.isAfter(today), isOvulationDay)
         }
     }
@@ -1338,11 +1344,11 @@ private fun MonthGrid(
     // cell can tell whether it merges into a run that actually started/continues on the adjacent
     // month's page, instead of always rounding off there just because this page's own gridDays
     // list has nothing before/after it to compare against.
-    val phaseBeforeGrid = remember(gridStart, periods, marginDays, lutealPhaseDays) {
-        cyclePhaseFor(gridStart.minusDays(1), periods, marginDays, lutealPhaseDays)
+    val phaseBeforeGrid = remember(gridStart, cycleModel, marginDays, lutealPhaseDays) {
+        cycleModel.phaseFor(gridStart.minusDays(1), marginDays, lutealPhaseDays)
     }
-    val phaseAfterGrid = remember(gridStart, periods, marginDays, lutealPhaseDays) {
-        cyclePhaseFor(gridStart.plusDays((weeks * 7).toLong()), periods, marginDays, lutealPhaseDays)
+    val phaseAfterGrid = remember(gridStart, cycleModel, marginDays, lutealPhaseDays) {
+        cycleModel.phaseFor(gridStart.plusDays((weeks * 7).toLong()), marginDays, lutealPhaseDays)
     }
 
     // Hit-testing for the range-selection drag below: each cell reports its own on-screen

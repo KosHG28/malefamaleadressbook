@@ -41,9 +41,11 @@ import com.koshg.interlude.ui.theme.MarkerKind
 import com.koshg.interlude.ui.theme.appColors
 import com.koshg.interlude.ui.theme.colorFor
 import com.koshg.interlude.ui.theme.phaseColor
+import com.koshg.interlude.util.CycleModel
 import com.koshg.interlude.util.CyclePhase
-import com.koshg.interlude.util.cyclePhaseFor
+import com.koshg.interlude.util.cycleModelOf
 import com.koshg.interlude.util.monthYearLabel
+import com.koshg.interlude.util.phaseFor
 import java.time.YearMonth
 
 /**
@@ -71,6 +73,10 @@ fun YearOverviewScreen(
     val appColors = appColors()
     val haptics = LocalHaptics.current
     var year by remember { mutableStateOf(initialYear) }
+    // Built once for the whole screen rather than per day: twelve mosaics ask about ~360 days,
+    // and rebuilding the parsed period list for each of them is what made paging through years
+    // stall the UI thread.
+    val cycleModel = remember(periods) { cycleModelOf(periods) }
     val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
 
     // Shown as a plain in-place overlay, not a Dialog/Popup window, so it needs its own back
@@ -129,7 +135,7 @@ fun YearOverviewScreen(
                     val month = YearMonth.of(year, monthIndex + 1)
                     MonthMosaic(
                         month = month,
-                        periods = periods,
+                        cycleModel = cycleModel,
                         marginDays = marginDays,
                         lutealPhaseDays = lutealPhaseDays,
                         sexDates = sexDates,
@@ -161,7 +167,7 @@ private data class MosaicDay(val phase: CyclePhase?, val marker: MarkerKind?)
 @Composable
 private fun MonthMosaic(
     month: YearMonth,
-    periods: List<PeriodEntry>,
+    cycleModel: CycleModel,
     marginDays: Int,
     lutealPhaseDays: Int,
     sexDates: Set<String>,
@@ -172,7 +178,7 @@ private fun MonthMosaic(
     val appColors = appColors()
     val markerColors = LocalMarkerColors.current
     val cells = remember(
-        month, periods, marginDays, lutealPhaseDays, sexDates, proposalByDate, masturbationDates
+        month, cycleModel, marginDays, lutealPhaseDays, sexDates, proposalByDate, masturbationDates
     ) {
         // Blanks ahead of the 1st so it lands under its real weekday. dayOfWeek.value is ISO
         // (Monday = 1), which is the week this app starts on everywhere else.
@@ -180,7 +186,7 @@ private fun MonthMosaic(
         List<MosaicDay?>(leadingBlanks) { null } + (1..month.lengthOfMonth()).map { day ->
             val date = month.atDay(day)
             MosaicDay(
-                phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays),
+                phase = cycleModel.phaseFor(date, marginDays, lutealPhaseDays),
                 marker = markerKindFor(date.toString(), sexDates, proposalByDate, masturbationDates)
             )
         }

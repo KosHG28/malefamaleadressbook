@@ -17,6 +17,7 @@ import com.koshg.interlude.data.AppDatabase
 import com.koshg.interlude.data.CycleRepository
 import com.koshg.interlude.data.EventRepository
 import com.koshg.interlude.data.IntimacyRepository
+import com.koshg.interlude.diagnostics.CrashLog
 import com.koshg.interlude.haptics.ProvideHaptics
 import com.koshg.interlude.security.AppLockGate
 import com.koshg.interlude.settings.CyclePreferences
@@ -57,6 +58,10 @@ class MainActivity : FragmentActivity() {
         // Must be called before super.onCreate() so the system splash screen actually attaches.
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // Installed first thing, so a crash anywhere after this point leaves a trace behind --
+        // there is no Play Console behind this build to collect one otherwise.
+        CrashLog.install(this)
 
         // A genuine new session, not a configuration-change recreation (savedInstanceState is
         // non-null exactly when the system is restoring a recreated activity, e.g. after

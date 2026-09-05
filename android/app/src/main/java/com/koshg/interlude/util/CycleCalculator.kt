@@ -169,6 +169,44 @@ fun computeCycleStats(
 private data class CycleWindow(val cycleStart: LocalDate, val nextPeriodStart: LocalDate)
 
 /**
+ * Everything the per-day questions need out of [PeriodEntry], worked out once.
+ *
+ * [cyclePhaseFor] and friends each take the raw list, which means every single call re-parses
+ * every logged date out of its string, re-sorts them, and recomputes the EWMA forecast before it
+ * can answer anything. One call is nothing; a screen is not. The month grid asks 42 times, and the
+ * year overview asks about 360 times for one page -- so paging through years redid that work
+ * thousands of times per second on the composition thread, which is enough to lock the UI up
+ * rather than merely slow it down.
+ *
+ * Build one of these where the dates come from (a [remember] keyed on the period list) and ask it
+ * instead: the parsing and forecasting happen once, and each day costs a lookup and a short walk.
+ */
+class CycleModel internal constructor(
+    internal val sortedStarts: List<LocalDate>,
+    internal val cycleLength: Long,
+    /** Logged end dates by their cycle's start, so [periodEndFor] needs no scan per day. */
+    internal val loggedEnds: Map<LocalDate, LocalDate>
+) {
+    internal val hasHistory: Boolean get() = sortedStarts.isNotEmpty()
+}
+
+fun cycleModelOf(periods: List<PeriodEntry>): CycleModel {
+    val sortedStarts = periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
+    val loggedEnds = buildMap {
+        periods.forEach { entry ->
+            val start = entry.startDate.toLocalDateOrNull() ?: return@forEach
+            val end = entry.endDate?.toLocalDateOrNull() ?: return@forEach
+            if (!end.isBefore(start)) put(start, end)
+        }
+    }
+    return CycleModel(
+        sortedStarts = sortedStarts,
+        cycleLength = forecastCycleLength(sortedStarts).roundToLong().coerceAtLeast(1),
+        loggedEnds = loggedEnds
+    )
+}
+
+/**
  * Locates (or extrapolates, using the forecast cycle length) the menstrual cycle [date] falls
  * in — this works for any date, past or future, logged or not, so a whole visible month grid —
  * including days that spill into neighboring cycles — can be colored consistently. Returns null
@@ -180,11 +218,11 @@ private data class CycleWindow(val cycleStart: LocalDate, val nextPeriodStart: L
  * instead of being measured against a stale, too-distant boundary (which previously misclassified
  * the days right before an unlogged/extrapolated period start).
  */
-private fun resolveCycleWindow(date: LocalDate, periods: List<PeriodEntry>): CycleWindow? {
-    val sortedDates = periods.mapNotNull { it.startDate.toLocalDateOrNull() }.sorted()
+private fun resolveCycleWindow(date: LocalDate, model: CycleModel): CycleWindow? {
+    val sortedDates = model.sortedStarts
     if (sortedDates.isEmpty()) return null
 
-    val cycleLength = forecastCycleLength(sortedDates).roundToLong().coerceAtLeast(1)
+    val cycleLength = model.cycleLength
 
     var cycleStart = sortedDates.first()
     var nextPeriodStart = sortedDates.getOrNull(1) ?: cycleStart.plusDays(cycleLength)
@@ -213,12 +251,8 @@ private fun resolveCycleWindow(date: LocalDate, periods: List<PeriodEntry>): Cyc
  * back to [ASSUMED_PERIOD_DURATION_DAYS] for predicted/future cycles and any period logged before
  * this field existed.
  */
-private fun periodEndFor(cycleStart: LocalDate, periods: List<PeriodEntry>): LocalDate {
-    val loggedEnd = periods
-        .firstOrNull { it.startDate.toLocalDateOrNull() == cycleStart }
-        ?.endDate
-        ?.toLocalDateOrNull()
-        ?.takeIf { !it.isBefore(cycleStart) }
+private fun periodEndFor(cycleStart: LocalDate, model: CycleModel): LocalDate {
+    val loggedEnd = model.loggedEnds[cycleStart]
     return loggedEnd?.plusDays(1) ?: cycleStart.plusDays(ASSUMED_PERIOD_DURATION_DAYS.toLong())
 }
 
@@ -228,10 +262,18 @@ fun cyclePhaseFor(
     periods: List<PeriodEntry>,
     marginDays: Int = 0,
     lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
-): CyclePhase? {
-    val window = resolveCycleWindow(date, periods) ?: return null
+): CyclePhase? = cycleModelOf(periods).phaseFor(date, marginDays, lutealPhaseDays)
 
-    val periodEnd = periodEndFor(window.cycleStart, periods)
+/** [cyclePhaseFor] against an already-built [CycleModel] -- what a whole grid or mosaic should
+ *  call, so the parsing and forecasting happen once for the screen rather than once per day. */
+fun CycleModel.phaseFor(
+    date: LocalDate,
+    marginDays: Int = 0,
+    lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
+): CyclePhase? {
+    val window = resolveCycleWindow(date, this) ?: return null
+
+    val periodEnd = periodEndFor(window.cycleStart, this)
     val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())
@@ -256,8 +298,14 @@ fun ovulationDateFor(
     date: LocalDate,
     periods: List<PeriodEntry>,
     lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
+): LocalDate? = cycleModelOf(periods).ovulationFor(date, lutealPhaseDays)
+
+/** [ovulationDateFor] against an already-built [CycleModel]. */
+fun CycleModel.ovulationFor(
+    date: LocalDate,
+    lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
 ): LocalDate? {
-    val window = resolveCycleWindow(date, periods) ?: return null
+    val window = resolveCycleWindow(date, this) ?: return null
     return window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
 }
 
@@ -273,9 +321,10 @@ fun cyclePhaseProgressFor(
     marginDays: Int = 0,
     lutealPhaseDays: Int = DEFAULT_LUTEAL_PHASE_DAYS
 ): Pair<CyclePhase, Float>? {
-    val window = resolveCycleWindow(date, periods) ?: return null
+    val model = cycleModelOf(periods)
+    val window = resolveCycleWindow(date, model) ?: return null
 
-    val periodEnd = periodEndFor(window.cycleStart, periods)
+    val periodEnd = periodEndFor(window.cycleStart, model)
     val ovulation = window.nextPeriodStart.minusDays(lutealPhaseDays.toLong())
     val fertileStart = ovulation.minusDays((FERTILE_WINDOW_BEFORE_OVULATION_DAYS + marginDays).toLong())
     val fertileEnd = ovulation.plusDays((FERTILE_WINDOW_AFTER_OVULATION_DAYS + marginDays).toLong())

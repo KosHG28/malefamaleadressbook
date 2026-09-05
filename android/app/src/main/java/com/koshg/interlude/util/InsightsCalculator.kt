@@ -130,8 +130,11 @@ fun computeCorrelationInsights(
     // Both cycle-model parameters have to be the ones the calendar itself is drawn with, or an
     // entry gets bucketed into a different phase here than the day it sits on is painted with --
     // the app would then say two different things about the same date.
+    // One model for the whole pass: this runs once per logged entry, and the raw-list form
+    // re-parses the entire period history on every one of those calls.
+    val cycleModel = cycleModelOf(periods)
     fun phaseOf(dateStr: String): CyclePhase? =
-        dateStr.toLocalDateOrNull()?.let { cyclePhaseFor(it, periods, marginDays, lutealPhaseDays) }
+        dateStr.toLocalDateOrNull()?.let { cycleModel.phaseFor(it, marginDays, lutealPhaseDays) }
 
     val tallies = CyclePhase.entries.associateWith { PhaseTally() }
     val sexDates = sexEntries.mapTo(HashSet()) { it.date }

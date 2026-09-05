@@ -136,6 +136,28 @@ class CycleCalculatorTest {
     }
 
     @Test
+    fun `the prepared model answers exactly as the raw-list form does`() {
+        // cyclePhaseFor now delegates to a CycleModel, and screens call the model directly to
+        // avoid re-parsing the history per day. If the two ever drift, a calendar cell and a
+        // statistic about the same date would disagree, so pin them together.
+        val periods = listOf(
+            period(LocalDate.of(2026, 1, 1)),
+            period(LocalDate.of(2026, 1, 30)),
+            period(LocalDate.of(2026, 2, 27))
+        )
+        val model = cycleModelOf(periods)
+        var date = LocalDate.of(2025, 11, 1)
+        repeat(240) {
+            assertEquals(
+                cyclePhaseFor(date, periods, marginDays = 1),
+                model.phaseFor(date, marginDays = 1)
+            )
+            assertEquals(ovulationDateFor(date, periods), model.ovulationFor(date))
+            date = date.plusDays(1)
+        }
+    }
+
+    @Test
     fun `ovulationDateFor returns null with no period history`() {
         assertNull(ovulationDateFor(LocalDate.of(2026, 1, 1), emptyList()))
     }

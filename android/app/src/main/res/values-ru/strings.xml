@@ -283,4 +283,8 @@
     <string name="data_open_read_failed">Не удалось открыть файл для чтения</string>
     <string name="data_loaded">Данные загружены</string>
     <string name="data_read_failed">Не удалось прочитать файл</string>
+    <!-- Отчёт о сбое -->
+    <string name="settings_crash_title">Последний сбой</string>
+    <string name="settings_crash_hint">Приложение неожиданно закрылось и сохранило подробности. Перешлите этот текст тому, кто чинит.</string>
+    <string name="settings_crash_clear">Очистить</string>
 </resources>
