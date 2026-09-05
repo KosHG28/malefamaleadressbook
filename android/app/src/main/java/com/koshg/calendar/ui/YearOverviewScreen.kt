@@ -45,8 +45,9 @@ import java.time.YearMonth
 
 /**
  * A 12-month-at-a-glance overview -- each month renders as a tiny mosaic of phase colors (no day
- * numbers, no weekday alignment, just a quick heat-map read of the year) so jumping to a distant
- * month doesn't mean paging through the main calendar one month at a time.
+ * numbers, just a quick heat-map read of the year) so jumping to a distant month doesn't mean
+ * paging through the main calendar one month at a time. Months are laid out on weekday columns
+ * like any wall calendar, so the same column is the same weekday in every month of the year.
  *
  * Days carry the same marker rings the month grid draws, in the same colors and by the same
  * priority ([markerKindFor]), so a year of intimacy reads at a glance too -- that is most of what
@@ -167,10 +168,13 @@ private fun MonthMosaic(
 ) {
     val appColors = appColors()
     val markerColors = LocalMarkerColors.current
-    val days = remember(
+    val cells = remember(
         month, periods, marginDays, lutealPhaseDays, sexDates, proposalByDate, masturbationDates
     ) {
-        (1..month.lengthOfMonth()).map { day ->
+        // Blanks ahead of the 1st so it lands under its real weekday. dayOfWeek.value is ISO
+        // (Monday = 1), which is the week this app starts on everywhere else.
+        val leadingBlanks = month.atDay(1).dayOfWeek.value - 1
+        List<MosaicDay?>(leadingBlanks) { null } + (1..month.lengthOfMonth()).map { day ->
             val date = month.atDay(day)
             MosaicDay(
                 phase = cyclePhaseFor(date, periods, marginDays, lutealPhaseDays),
@@ -194,12 +198,18 @@ private fun MonthMosaic(
             color = appColors.textPrimary
         )
         Spacer(Modifier.height(6.dp))
-        days.chunked(7).forEach { week ->
+        cells.chunked(7).forEach { week ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                week.forEach { day ->
+                week.forEach { cell ->
+                    if (cell == null) {
+                        // A weekday column this month hasn't reached yet -- holds the width so the
+                        // days after it stay in their own columns.
+                        Spacer(Modifier.weight(1f))
+                        return@forEach
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -213,14 +223,14 @@ private fun MonthMosaic(
                                 // dots, day-cell pills) -- a plain square read as out of place here.
                                 .clip(RoundedCornerShape(50))
                                 .background(
-                                    day.phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground
+                                    cell.phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground
                                 )
                         )
                         // Inset rather than drawn on the day's own edge: with only 2dp between
                         // neighbours, edge rings on two marked days in a row would touch and read
                         // as one shape. The white halo does the same job as the month grid's --
                         // keeps the ring visible when its color sits close to the fill beneath it.
-                        day.marker?.let { marker ->
+                        cell.marker?.let { marker ->
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize(MOSAIC_RING_HALO_FRACTION)

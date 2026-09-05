@@ -30,8 +30,8 @@ android {
         // Android 16 (API 36) only, by design — no back-compat branches to maintain.
         minSdk = 36
         targetSdk = 36
-        versionCode = 34
-        versionName = "3.0.31"
+        versionCode = 35
+        versionName = "3.0.32"
     }
 
     signingConfigs {
