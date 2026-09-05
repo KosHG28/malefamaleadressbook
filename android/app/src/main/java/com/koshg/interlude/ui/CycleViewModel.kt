@@ -27,7 +27,7 @@ import java.time.LocalDate
 /** How many days a dismissed suggestion banner stays snoozed before it may reappear. */
 private const val SUGGESTION_SNOOZE_DAYS = 7L
 
-/** How many app opens the FAB keeps its "Добавить" text label for -- see
+/** How many app opens the FAB keeps its text label for -- see
  *  [CycleViewModel.showExtendedFabLabel]. */
 private const val FAB_LABEL_SESSION_THRESHOLD = 3
 
@@ -85,7 +85,7 @@ class CycleViewModel(
 ) : ViewModel() {
 
     /** Fixed for this ViewModel's lifetime, not part of the reactive [uiState] below -- whether
-     *  the FAB should show its "Добавить" text label this app open. MainActivity records the
+     *  the FAB should show its text label this app open. MainActivity records the
      *  open (via [CyclePreferences.recordAppOpen]) before this ViewModel is first touched, so
      *  the count read here already includes the current session. */
     val showExtendedFabLabel: Boolean = preferences.appOpenCount <= FAB_LABEL_SESSION_THRESHOLD

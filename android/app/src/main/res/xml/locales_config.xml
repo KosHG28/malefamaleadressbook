@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The languages this app actually ships translations for. Declaring them turns on Android's own
+  per-app language picker (Settings -> Apps -> Interlude -> Language), so there is no need for a
+  language switch inside the app: the system one already remembers the choice per app, survives
+  reinstalls and is where people look for it.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ru" />
+</locale-config>

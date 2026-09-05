@@ -34,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.koshg.interlude.R
 import com.koshg.interlude.data.CalendarEvent
 import com.koshg.interlude.data.EVENT_COLOR_PALETTE
 import com.koshg.interlude.haptics.HapticEvent
@@ -77,7 +79,7 @@ fun EventEditSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = if (event == null) "Новое событие" else "Редактировать событие",
+                text = if (event == null) stringResource(R.string.event_new_title) else stringResource(R.string.event_edit_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = appColors.textPrimary
             )
@@ -85,7 +87,7 @@ fun EventEditSheet(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Название") },
+                label = { Text(stringResource(R.string.event_field_title)) },
                 singleLine = true,
                 shape = sheetFieldShape,
                 colors = sheetFieldColors(),
@@ -121,7 +123,7 @@ fun EventEditSheet(
                     allDay = it
                 })
                 Spacer(Modifier.width(8.dp))
-                Text("Весь день", color = appColors.textPrimary)
+                Text(stringResource(R.string.event_all_day), color = appColors.textPrimary)
             }
 
             if (!allDay) {
@@ -130,7 +132,7 @@ fun EventEditSheet(
                         value = startTime,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Начало") },
+                        label = { Text(stringResource(R.string.event_start)) },
                         shape = sheetFieldShape,
                         colors = sheetFieldColors(),
                         modifier = Modifier
@@ -141,7 +143,7 @@ fun EventEditSheet(
                         value = endTime,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Конец") },
+                        label = { Text(stringResource(R.string.event_end)) },
                         shape = sheetFieldShape,
                         colors = sheetFieldColors(),
                         modifier = Modifier
@@ -152,7 +154,7 @@ fun EventEditSheet(
             }
 
             Column {
-                Text("Цвет", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+                Text(stringResource(R.string.event_color), style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     EVENT_COLOR_PALETTE.forEach { c ->
@@ -175,7 +177,7 @@ fun EventEditSheet(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Заметка") },
+                label = { Text(stringResource(R.string.field_note)) },
                 minLines = 2,
                 maxLines = 4,
                 shape = sheetFieldShape,
@@ -190,11 +192,11 @@ fun EventEditSheet(
             ) {
                 if (onDelete != null) {
                     TextButton(onClick = onDelete) {
-                        Text("Удалить", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                     }
                     Spacer(Modifier.weight(1f))
                 }
-                TextButton(onClick = onDismiss) { Text("Отмена", color = appColors.textSecondary) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = appColors.textSecondary) }
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
@@ -216,7 +218,7 @@ fun EventEditSheet(
                     enabled = title.isNotBlank(),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
-                ) { Text("Сохранить") }
+                ) { Text(stringResource(R.string.action_save)) }
             }
         }
     }

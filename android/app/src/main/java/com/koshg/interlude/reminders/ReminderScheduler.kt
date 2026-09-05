@@ -7,6 +7,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.koshg.interlude.R
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -33,10 +34,10 @@ object ReminderScheduler {
     fun ensureChannel(context: Context) {
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
-            "Напоминания цикла",
+            context.getString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Приближение месячных и день овуляции"
+            description = context.getString(R.string.notification_channel_description)
         }
         NotificationManagerCompat.from(context).createNotificationChannel(channel)
     }

@@ -60,12 +60,23 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val daysUntil = ChronoUnit.DAYS.between(today, predicted)
             val inWindow = daysUntil in 0..PERIOD_REMINDER_LEAD_DAYS
             if (inWindow && preferences.periodReminderNotifiedForEpochDay != predicted.toEpochDay()) {
+                // Plural rather than a formatted number: Russian inflects the word for "day"
+                // by count, and picking the form in code would bake one language's rules in.
                 val text = when (daysUntil) {
-                    0L -> "По прогнозу — сегодня"
-                    1L -> "По прогнозу — завтра"
-                    else -> "По прогнозу — через $daysUntil дня"
+                    0L -> applicationContext.getString(R.string.notification_period_today)
+                    1L -> applicationContext.getString(R.string.notification_period_tomorrow)
+                    else -> applicationContext.resources.getQuantityString(
+                        R.plurals.notification_period_in_days, daysUntil.toInt(), daysUntil.toInt()
+                    )
                 }
-                notifier.notify(NOTIFICATION_ID_PERIOD, buildNotification("Месячные скоро", text, markStartAction()))
+                notifier.notify(
+                    NOTIFICATION_ID_PERIOD,
+                    buildNotification(
+                        applicationContext.getString(R.string.notification_period_title),
+                        text,
+                        markStartAction()
+                    )
+                )
                 preferences.periodReminderNotifiedForEpochDay = predicted.toEpochDay()
             }
         }
@@ -74,12 +85,17 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val daysSince = ChronoUnit.DAYS.between(predicted, today)
             val inWindow = daysSince in 0..OVULATION_REMINDER_CATCH_UP_DAYS
             if (inWindow && preferences.ovulationReminderNotifiedForEpochDay != predicted.toEpochDay()) {
-                val text = if (daysSince == 0L) {
-                    "Сегодня примерный день овуляции, по текущему прогнозу"
-                } else {
-                    "Вчера был примерный день овуляции, по текущему прогнозу"
-                }
-                notifier.notify(NOTIFICATION_ID_OVULATION, buildNotification("День овуляции", text))
+                val text = applicationContext.getString(
+                    if (daysSince == 0L) {
+                        R.string.notification_ovulation_today
+                    } else {
+                        R.string.notification_ovulation_yesterday
+                    }
+                )
+                notifier.notify(
+                    NOTIFICATION_ID_OVULATION,
+                    buildNotification(applicationContext.getString(R.string.notification_ovulation_title), text)
+                )
                 preferences.ovulationReminderNotifiedForEpochDay = predicted.toEpochDay()
             }
         }
@@ -107,6 +123,10 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Action.Builder(R.drawable.ic_notification, "Отметить начало", pendingIntent).build()
+        return NotificationCompat.Action.Builder(
+            R.drawable.ic_notification,
+            applicationContext.getString(R.string.notification_action_mark_start),
+            pendingIntent
+        ).build()
     }
 }

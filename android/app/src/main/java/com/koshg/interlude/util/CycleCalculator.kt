@@ -1,5 +1,7 @@
 package com.koshg.interlude.util
 
+import androidx.annotation.StringRes
+import com.koshg.interlude.R
 import com.koshg.interlude.data.PeriodEntry
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -44,11 +46,11 @@ private val PLAUSIBLE_CYCLE_LENGTH_RANGE = 15..60
 /** Safety cap so a pathological/corrupt date never spins the boundary-walking loops forever. */
 private const val MAX_CYCLE_WALK_STEPS = 2000
 
-enum class CyclePhase(val label: String) {
-    MENSTRUAL("Менструация"),
-    FOLLICULAR("Фолликулярная"),
-    OVULATORY("Овуляция"),
-    LUTEAL("Лютеиновая")
+enum class CyclePhase(@StringRes val labelRes: Int) {
+    MENSTRUAL(R.string.phase_menstrual),
+    FOLLICULAR(R.string.phase_follicular),
+    OVULATORY(R.string.phase_ovulatory),
+    LUTEAL(R.string.phase_luteal)
 }
 
 data class CycleStats(

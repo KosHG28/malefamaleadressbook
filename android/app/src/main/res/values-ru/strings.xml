@@ -1,0 +1,286 @@
+<resources>
+    <!-- Дата -->
+    <string name="pattern_month_year">LLLL yyyy</string>
+    <string name="pattern_day_agenda">EEEE, d MMMM</string>
+    <string name="pattern_short_date">d MMMM</string>
+    <string name="pattern_full_date">d MMMM yyyy</string>
+    <string name="pattern_month_short">MMM yy</string>
+
+    <!-- Фазы цикла -->
+    <string name="phase_menstrual">Менструация</string>
+    <string name="phase_follicular">Фолликулярная</string>
+    <string name="phase_ovulatory">Овуляция</string>
+    <string name="phase_luteal">Лютеиновая</string>
+
+    <!-- Кто -->
+    <string name="initiator_me">Я</string>
+    <string name="initiator_partner">Партнёр</string>
+
+    <!-- Виды отметок -->
+    <string name="marker_sex">Секс</string>
+    <string name="marker_proposal_accepted">Предложение принято</string>
+    <string name="marker_proposal_declined">Предложение отклонено</string>
+    <string name="marker_proposal_pending">Предложение ожидает</string>
+    <string name="marker_solo">Соло</string>
+
+    <!-- Цветовые схемы -->
+    <string name="palette_wine">Винная</string>
+    <string name="palette_midnight">Полночь</string>
+    <string name="palette_forest">Лес</string>
+    <string name="palette_plum">Слива</string>
+    <string name="palette_graphite">Графит</string>
+
+    <!-- Тема -->
+    <string name="theme_system">Система</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+
+    <!-- Блокировка -->
+    <string name="lock_prompt_title">Разблокировка</string>
+    <string name="lock_screen_title">Приложение заблокировано</string>
+    <string name="lock_screen_subtitle">Подтвердите личность, чтобы продолжить</string>
+    <string name="lock_unlock_button">Разблокировать</string>
+
+    <!-- Напоминания -->
+    <string name="notification_channel_name">Напоминания цикла</string>
+    <string name="notification_channel_description">Приближение месячных и день овуляции</string>
+    <string name="notification_period_title">Месячные скоро</string>
+    <string name="notification_period_today">По прогнозу — сегодня</string>
+    <string name="notification_period_tomorrow">По прогнозу — завтра</string>
+    <plurals name="notification_period_in_days">
+        <item quantity="one">По прогнозу — через %d день</item>
+        <item quantity="few">По прогнозу — через %d дня</item>
+        <item quantity="many">По прогнозу — через %d дней</item>
+        <item quantity="other">По прогнозу — через %d дня</item>
+    </plurals>
+    <string name="notification_ovulation_title">День овуляции</string>
+    <string name="notification_ovulation_today">Сегодня примерный день овуляции, по текущему прогнозу</string>
+    <string name="notification_ovulation_yesterday">Вчера был примерный день овуляции, по текущему прогнозу</string>
+    <string name="notification_action_mark_start">Отметить начало</string>
+    <!-- Причины отказа -->
+    <string name="decline_reason_fatigue">Усталость</string>
+    <string name="decline_reason_mood">Настроение</string>
+    <string name="decline_reason_wellbeing">Самочувствие</string>
+    <string name="decline_reason_other">Другое</string>
+    <!-- Подсказки по фазам: одна выбирается на день, детерминированно -->
+    <string-array name="phase_tips_menstrual">
+        <item>Возможны спазмы и упадок сил. Уместнее забота без напора — грелка, чай, плед, фильм рядом — и не давить на близость, если сама не проявит инициативу.</item>
+        <item>Организм сейчас восстанавливается, энергии может быть меньше обычного. Взять на себя бытовые мелочи — уже хорошая поддержка, без лишних слов.</item>
+        <item>Дискомфорт и раздражительность в эти дни — это физиология, а не про тебя лично. Не принимай резкость на свой счёт.</item>
+        <item>Хороший момент предложить тёплую грелку или обезболивающее, если она забыла, а не ждать, пока попросит сама.</item>
+    </string-array>
+    <string-array name="phase_tips_follicular">
+        <item>Энергия и настроение обычно растут. Хорошее время для активных свиданий, новых идей и совместных планов.</item>
+        <item>Мотивация и работоспособность часто на подъёме — удобный момент обсудить общие планы или начать что-то новое вдвоём.</item>
+        <item>Настроение обычно ровное и открытое. Подходящее время для разговоров, которые давно откладывали.</item>
+        <item>Хорошее окно для активного отдыха — прогулка, спорт, поездка — энергии на это обычно хватает с запасом.</item>
+    </string-array>
+    <string-array name="phase_tips_ovulatory">
+        <item>Часто пик энергии и либидо. Подходящий момент для романтики и близости — но ориентируйтесь на её настроение в моменте, а не только на фазу.</item>
+        <item>Уверенность и общительность нередко на максимуме в эти дни — хорошее время для чего-то яркого вдвоём.</item>
+        <item>Пик цикла не гарантирует настроение — он лишь немного повышает шансы, финальное слово всегда за тем, как она сама себя чувствует.</item>
+        <item>Если давно не было свидания — эти дни статистически удачнее прочих, чтобы его предложить.</item>
+    </string-array>
+    <string-array name="phase_tips_luteal">
+        <item>Ближе к концу фазы возможны перепады настроения и ПМС. Больше терпения, меньше критики — спокойный тихий вечер обычно заходит лучше активных планов.</item>
+        <item>Тяга к сладкому, усталость, чувствительность к мелочам — обычные спутники этой фазы, а не повод для конфликта.</item>
+        <item>Хорошее время сбавить обороты вместе — меньше шумных планов, больше спокойного времени рядом.</item>
+        <item>Если она вдруг более резкая или закрытая, чем обычно — это чаще фаза цикла, чем отношение к тебе.</item>
+    </string-array>
+    <!-- Выводы. %1$s — название фазы, %2$d — процент -->
+    <string name="insight_partner_initiates">В фазу «%1$s» инициатива чаще исходит от партнёра (%2$d%% случаев).</string>
+    <string name="insight_highest_acceptance">В фазу «%1$s» процент принятых предложений максимален (%2$d%%).</string>
+    <string name="insight_most_declines">В фазу «%1$s» отказов больше всего (%2$d%%).</string>
+    <string name="insight_fatigue_cluster">Отказы по причине усталости чаще всего приходятся на фазу «%1$s» — возможно, стоит планировать больше отдыха в этот период.</string>
+
+    <!-- Проактивная подсказка. %1$s — идея ниже -->
+    <string name="suggestion_title">Идея для вечера</string>
+    <string name="suggestion_long_absence">Давно не было записей о близости. Может, устроить расслабляющий вечер — %1$s?</string>
+    <string name="suggestion_fatigue">В недавних отказах часто звучит усталость. Возможно, стоит запланировать больше отдыха — %1$s.</string>
+    <string name="suggestion_both">Давно не было близости, а среди недавних отказов часто звучит усталость. Может, устроить спокойный вечер вдвоём — %1$s?</string>
+    <string name="suggestion_idea_massage_liked">например, массаж без продолжения — раньше вам обоим это нравилось</string>
+    <string name="suggestion_idea_massage_generic">например, просто массаж без продолжения, без ожиданий</string>
+    <!-- Год целиком -->
+    <string name="year_overview_title">Год целиком</string>
+    <string name="action_close">Закрыть</string>
+    <string name="year_previous">Предыдущий год</string>
+    <string name="year_next">Следующий год</string>
+
+    <!-- Общие действия -->
+    <string name="action_add">Добавить</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_delete">Удалить</string>
+
+    <!-- Событие календаря -->
+    <string name="event_new_title">Новое событие</string>
+    <string name="event_edit_title">Редактировать событие</string>
+    <string name="event_field_title">Название</string>
+    <string name="event_all_day">Весь день</string>
+    <string name="event_start">Начало</string>
+    <string name="event_end">Конец</string>
+    <string name="event_color">Цвет</string>
+    <string name="field_note">Заметка</string>
+
+    <!-- Записи дня -->
+    <string name="agenda_phase_tip">Подсказка по фазе цикла</string>
+    <string name="agenda_empty">На этот день записей нет. Нажмите «+», чтобы добавить.</string>
+    <string name="agenda_period_start">Начало месячных</string>
+    <string name="agenda_intimacy">Близость</string>
+    <string name="agenda_proposal">Предложение близости</string>
+    <string name="agenda_masturbation">Мастурбация</string>
+    <string name="agenda_initiator">Инициатор: %1$s</string>
+    <string name="agenda_from">От: %1$s</string>
+    <string name="agenda_my_orgasms">Мои оргазмы: %1$d</string>
+    <string name="agenda_partner_orgasms">Оргазмы партнёра: %1$d</string>
+    <string name="agenda_orgasms">Оргазмов: %1$d</string>
+    <string name="agenda_proposal_pending">ожидает ответа</string>
+    <string name="agenda_proposal_accepted">принято</string>
+    <string name="agenda_proposal_declined">отклонено</string>
+    <string name="agenda_decline_reason">причина: %1$s</string>
+    <!-- История и тренды -->
+    <string name="history_title">История и тренды</string>
+    <string name="history_section_cycle_length">Длина цикла</string>
+    <string name="history_need_two_cycles">Добавьте хотя бы два цикла месячных, чтобы увидеть статистику.</string>
+    <string name="history_irregular">Цикл нерегулярный — длины сильно разбросаны, прогноз менее точен</string>
+    <string name="history_average">Средняя</string>
+    <string name="history_minimum">Минимум</string>
+    <string name="history_maximum">Максимум</string>
+    <plurals name="days_short">
+        <item quantity="one">%d дн.</item>
+        <item quantity="few">%d дн.</item>
+        <item quantity="many">%d дн.</item>
+        <item quantity="other">%d дн.</item>
+    </plurals>
+    <string name="history_no_entries">Записей пока нет.</string>
+    <string name="history_section_proposals">Предложения</string>
+    <string name="history_accepted_of">Принято %1$d из %2$d (%3$d%%)</string>
+    <string name="history_pending">Ожидает ответа: %1$d</string>
+    <string name="history_from_intimacy">Из них по записям близости: %1$d</string>
+    <string name="history_section_correlations">Корреляции</string>
+    <string name="history_not_enough_data">Пока недостаточно записей, чтобы увидеть закономерности по фазам цикла.</string>
+    <string name="history_date_range">%1$s → %2$s</string>
+    <!-- Формы добавления и редактирования -->
+    <string name="sheet_new_entry">Новая запись</string>
+    <string name="sheet_edit_entry">Редактировать запись</string>
+    <string name="type_period">Месячные</string>
+    <string name="type_sex">Секс</string>
+    <string name="type_proposal">Предложение</string>
+    <string name="type_masturbation">Мастурбация</string>
+    <string name="field_initiator">Инициатор</string>
+    <string name="field_answer">Ответ</string>
+    <string name="field_decline_reason">Причина отказа</string>
+    <string name="field_custom_reason">Своя причина</string>
+    <string name="field_my_orgasms">Мои оргазмы</string>
+    <string name="field_partner_orgasms">Оргазмы партнёра</string>
+    <string name="field_orgasm_count">Количество оргазмов</string>
+    <string name="answer_accepted">Принято</string>
+    <string name="answer_declined">Отклонено</string>
+    <string name="answer_pending">Ожидает</string>
+    <string name="period_set_end_date">Указать дату окончания</string>
+    <string name="stepper_less">Меньше</string>
+    <string name="stepper_more">Больше</string>
+    <!-- Настройки -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_section_security">Безопасность</string>
+    <string name="settings_app_lock">Блокировка приложения</string>
+    <string name="settings_app_lock_hint">Биометрия или PIN/пароль устройства при запуске</string>
+    <string name="settings_section_marker_colors">Цвета отметок</string>
+    <string name="settings_marker_colors_hint">Цвет кольца вокруг даты</string>
+    <string name="action_collapse">Свернуть</string>
+    <string name="action_expand">Развернуть</string>
+    <string name="settings_reset_defaults">Сбросить по умолчанию</string>
+    <string name="settings_section_legends">Легенды</string>
+    <string name="settings_phase_legend">Легенда фаз</string>
+    <string name="settings_phase_legend_hint">Цвета фаз цикла под календарём</string>
+    <string name="settings_marker_legend">Легенда отметок</string>
+    <string name="settings_marker_legend_hint">Цвета колец: секс, предложения, соло</string>
+    <string name="settings_legends_note">Обе легенды раскрывают пояснение по нажатию на строку</string>
+    <string name="settings_section_color_scheme">Цветовая схема</string>
+    <string name="settings_color_scheme_hint">Акцент кнопок и фон календаря — цвета фаз не меняются</string>
+    <string name="settings_preview">Предпросмотр</string>
+    <string name="settings_section_appearance">Оформление</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_phase_display">Отображение фаз</string>
+    <string name="settings_fill">Заливка</string>
+    <string name="settings_dashed">Пунктир</string>
+    <string name="settings_adaptive_theme">Адаптивная тема</string>
+    <string name="settings_adaptive_theme_hint">Акцент кнопки добавления и выбранной даты плавно меняется по фазе цикла</string>
+    <string name="settings_section_hints">Подсказки</string>
+    <string name="settings_suggestions">Идеи для вечера</string>
+    <string name="settings_suggestions_hint">Ненавязчивая подсказка на календаре при долгом перерыве или частой усталости в отказах</string>
+    <string name="settings_section_notifications">Уведомления</string>
+    <string name="settings_reminders">Напоминания цикла</string>
+    <string name="settings_reminders_hint">За 2 дня до ожидаемых месячных и в примерный день овуляции, по тому же прогнозу, что и в календаре. Полностью локально, без сервера.</string>
+    <string name="settings_section_data">Данные</string>
+    <string name="settings_data_hint">Экспорт/импорт в файл — отдельно от системного бэкапа. Можно сохранить куда угодно, включая Google Drive, и перенести на другое устройство.</string>
+    <string name="settings_export">Экспорт</string>
+    <string name="settings_import">Импорт</string>
+    <string name="settings_system_backup">Системный бэкап Google</string>
+    <string name="settings_last_backup">Последний бэкап: %1$s</string>
+    <string name="settings_no_backup_yet">Бэкап пока не выполнялся на этом устройстве</string>
+    <string name="settings_restored_from_backup">Данные восстановлены из бэкапа: %1$s</string>
+    <string name="settings_backup_conditions">Android запускает его сам, примерно раз в сутки и только когда телефон заряжается, не используется и подключён к Wi-Fi. Восстановление происходит только при установке приложения на новое устройство, не при обновлении.</string>
+    <string name="settings_section_cycle_model">Модель цикла</string>
+    <string name="settings_luteal_length">Длина лютеиновой фазы (дн.)</string>
+    <string name="settings_luteal_hint">От овуляции до начала следующих месячных. По умолчанию %1$d дн. — измените, только если знаете свою норму по факту.</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_version">Версия %1$s</string>
+    <string name="settings_about_local">Все данные (циклы, близость, события) хранятся только на этом устройстве и никуда не отправляются.</string>
+    <string name="settings_about_backup">Если в системе включено резервное копирование Android, данные могут сохраняться в Google-аккаунт устройства — это делает сама ОС, без участия приложения; отключается в системных настройках телефона.</string>
+    <!-- Экран календаря -->
+    <string name="calendar_cycle_day">Цикл, день %1$d</string>
+    <string name="calendar_cycle">Цикл</string>
+    <string name="calendar_today">Сегодня</string>
+    <string name="calendar_add_period_for_forecast">Добавьте дату месячных, чтобы увидеть прогноз</string>
+    <string name="calendar_period_due">Месячные уже наступили</string>
+    <string name="calendar_period_expected_today">Ожидаемый день месячных</string>
+    <string name="calendar_next_period_in">Следующие месячные через %1$d дн.</string>
+    <string name="calendar_next_period_between">Следующие месячные через %1$d–%2$d дн.</string>
+    <string name="calendar_irregular">Цикл нерегулярный — точность прогноза по календарю снижена</string>
+    <string name="calendar_drag_hint">Проведите пальцем по дням месячных</string>
+    <string name="calendar_range_off">Выключить выбор диапазона месячных</string>
+    <string name="calendar_range_on">Выбрать диапазон месячных протягиванием пальца</string>
+    <string name="calendar_hide_hint">Скрыть подсказку</string>
+    <string name="calendar_orgasm">Оргазм</string>
+    <string name="calendar_settings">Настройки</string>
+    <string name="calendar_answer_proposal">Ответить на предложение</string>
+    <string name="calendar_add_period_predicted">Добавить: прогнозируется начало месячных</string>
+
+    <!-- Точность прогноза после записи месячных -->
+    <string name="prediction_exact">Прогноз оказался точным!</string>
+    <plurals name="prediction_late">
+        <item quantity="one">Начались на %d день позже прогноза</item>
+        <item quantity="few">Начались на %d дня позже прогноза</item>
+        <item quantity="many">Начались на %d дней позже прогноза</item>
+        <item quantity="other">Начались на %d дня позже прогноза</item>
+    </plurals>
+    <plurals name="prediction_early">
+        <item quantity="one">Начались на %d день раньше прогноза</item>
+        <item quantity="few">Начались на %d дня раньше прогноза</item>
+        <item quantity="many">Начались на %d дней раньше прогноза</item>
+        <item quantity="other">Начались на %d дня раньше прогноза</item>
+    </plurals>
+
+    <!-- Пустое состояние и подсказка при первом запуске -->
+    <string name="empty_title">Пока нет ни одной записи</string>
+    <string name="empty_body">Отметьте дату начала последних месячных — календарь сразу покажет фазы цикла и прогноз следующих</string>
+    <string name="empty_action">Отметить начало месячных</string>
+    <string name="onboarding_hint">Значки выше — история/тренды слева и настройки справа</string>
+    <string name="onboarding_got_it">Понятно</string>
+
+    <!-- Пояснения к легенде отметок -->
+    <string name="legend_sex_tip">Отмеченная близость в этот день.</string>
+    <string name="legend_accepted_tip">Предложение близости было сделано и принято.</string>
+    <string name="legend_declined_tip">Предложение близости было сделано, но отклонено.</string>
+    <string name="legend_pending_tip">Предложение сделано, но ответ ещё не отмечен.</string>
+    <string name="legend_solo_tip">Отмечена мастурбация в этот день. Если в тот же день была и близость, кольцо показывает её — весь состав дня виден при нажатии на дату.</string>
+
+    <!-- Результаты экспорта и импорта -->
+    <string name="data_open_write_failed">Не удалось открыть файл для записи</string>
+    <string name="data_saved">Данные сохранены</string>
+    <string name="data_save_failed">Не удалось сохранить данные</string>
+    <string name="data_open_read_failed">Не удалось открыть файл для чтения</string>
+    <string name="data_loaded">Данные загружены</string>
+    <string name="data_read_failed">Не удалось прочитать файл</string>
+</resources>

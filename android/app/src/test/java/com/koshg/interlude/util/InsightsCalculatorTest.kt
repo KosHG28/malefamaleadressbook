@@ -1,5 +1,6 @@
 package com.koshg.interlude.util
 
+import com.koshg.interlude.data.DeclineReason
 import com.koshg.interlude.data.Initiator
 import com.koshg.interlude.data.PeriodEntry
 import com.koshg.interlude.data.ProposalEntry
@@ -67,7 +68,12 @@ class InsightsCalculatorTest {
 
         val insights = computeCorrelationInsights(periods, lutealSex, follicularProposals)
 
-        assertTrue(insights.insights.any { it.phase == CyclePhase.FOLLICULAR && "партнёра" in it.sentence })
+        assertTrue(
+            insights.insights.any {
+                it.phase == CyclePhase.FOLLICULAR &&
+                    it.kind == CorrelationInsight.Kind.PARTNER_INITIATES
+            }
+        )
     }
 
     @Test
@@ -76,13 +82,20 @@ class InsightsCalculatorTest {
         val periods = listOf(period(start), period(start.plusDays(29)))
 
         val fatigueDeclines = listOf(
-            proposal(start.plusDays(7), Initiator.ME, accepted = false, reason = "Усталость"),
-            proposal(start.plusDays(36), Initiator.ME, accepted = false, reason = "Усталость после работы")
+            proposal(start.plusDays(7), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue),
+            proposal(start.plusDays(36), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue)
         )
 
         val insights = computeCorrelationInsights(periods, emptyList(), fatigueDeclines)
 
-        assertTrue(insights.insights.any { it.phase == CyclePhase.FOLLICULAR && it.sentence.contains("усталост", ignoreCase = true) })
+        // The finding is data now, not a sentence -- assert on the kind rather than on wording
+        // that only exists once the UI resolves it in the reader's language.
+        assertTrue(
+            insights.insights.any {
+                it.phase == CyclePhase.FOLLICULAR &&
+                    it.kind == CorrelationInsight.Kind.FATIGUE_CLUSTER
+            }
+        )
     }
 
     @Test
@@ -116,8 +129,8 @@ class InsightsCalculatorTest {
             sexEntries = listOf(sex(today.minusDays(1), Initiator.ME)),
             masturbationEntries = emptyList(),
             proposalEntries = listOf(
-                proposal(today.minusDays(5), Initiator.ME, accepted = false, reason = "Усталость"),
-                proposal(today.minusDays(2), Initiator.ME, accepted = false, reason = "Устала после работы")
+                proposal(today.minusDays(5), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue),
+                proposal(today.minusDays(2), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue)
             ),
             today = today
         )
@@ -191,8 +204,8 @@ class InsightsCalculatorTest {
             sexEntries = listOf(sex(today.minusDays(1), Initiator.ME)),
             masturbationEntries = emptyList(),
             proposalEntries = listOf(
-                proposal(today.minusDays(200), Initiator.ME, accepted = false, reason = "Усталость"),
-                proposal(today.minusDays(190), Initiator.ME, accepted = false, reason = "Усталость")
+                proposal(today.minusDays(200), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue),
+                proposal(today.minusDays(190), Initiator.ME, accepted = false, reason = DeclineReason.FATIGUE.storageValue)
             ),
             today = today
         )

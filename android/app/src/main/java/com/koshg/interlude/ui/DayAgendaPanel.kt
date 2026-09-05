@@ -32,9 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.koshg.interlude.R
 import com.koshg.interlude.data.CalendarEvent
+import com.koshg.interlude.data.DeclineReason
 import com.koshg.interlude.data.Initiator
 import com.koshg.interlude.data.MasturbationEntry
 import com.koshg.interlude.data.PeriodEntry
@@ -81,7 +85,7 @@ fun DayAgendaPanel(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = dayAgendaLabel(selectedDate).replaceFirstChar { it.uppercase() },
+                text = LocalContext.current.dayAgendaLabel(selectedDate),
                 style = MaterialTheme.typography.titleSmall,
                 color = appColors.textPrimary,
                 modifier = Modifier.weight(1f)
@@ -96,7 +100,7 @@ fun DayAgendaPanel(
                 ) {
                     Icon(
                         Icons.Default.Info,
-                        contentDescription = "Подсказка по фазе цикла",
+                        contentDescription = stringResource(R.string.agenda_phase_tip),
                         tint = appColors.textSecondary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -111,7 +115,7 @@ fun DayAgendaPanel(
         ) {
             if (phase != null) {
                 Text(
-                    text = phaseTipForMen(phase, selectedDate),
+                    text = LocalContext.current.phaseTipForMen(phase, selectedDate),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary,
                     modifier = Modifier.fillMaxWidth()
@@ -123,7 +127,7 @@ fun DayAgendaPanel(
 
         if (!hasAnything) {
             Text(
-                text = "На этот день записей нет. Нажмите «+», чтобы добавить.",
+                text = stringResource(R.string.agenda_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
@@ -201,7 +205,7 @@ private fun AgendaRow(
 @Composable
 private fun EventRow(event: CalendarEvent, onClick: () -> Unit) {
     val timeLabel = if (event.allDay) {
-        "Весь день"
+        stringResource(R.string.event_all_day)
     } else {
         listOfNotNull(event.startTime, event.endTime).joinToString(" – ")
     }
@@ -220,7 +224,7 @@ private fun PeriodRow(entry: PeriodEntry, onClick: () -> Unit) {
     AgendaRow(
         leadingColor = colors.period,
         icon = { Icon(Icons.Default.WaterDrop, contentDescription = null, tint = colors.period, modifier = Modifier.size(20.dp)) },
-        title = "Начало месячных",
+        title = stringResource(R.string.agenda_period_start),
         subtitle = entry.notes.ifBlank { null },
         onClick = onClick
     )
@@ -232,16 +236,16 @@ private fun SexRow(entry: SexEntry, onClick: () -> Unit) {
     // into never disagree -- including after the user recolors a marker in Settings.
     val colors = LocalMarkerColors.current
     val parts = buildList {
-        add("Инициатор: ${Initiator.fromStorage(entry.initiator).label}")
+        add(stringResource(R.string.agenda_initiator, stringResource(Initiator.fromStorage(entry.initiator).labelRes)))
         // Named per person rather than summed: whose they were is the point of counting them.
-        if (entry.myOrgasmCount > 0) add("Мои оргазмы: ${entry.myOrgasmCount}")
-        if (entry.partnerOrgasmCount > 0) add("Оргазмы партнёра: ${entry.partnerOrgasmCount}")
+        if (entry.myOrgasmCount > 0) add(stringResource(R.string.agenda_my_orgasms, entry.myOrgasmCount))
+        if (entry.partnerOrgasmCount > 0) add(stringResource(R.string.agenda_partner_orgasms, entry.partnerOrgasmCount))
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
     AgendaRow(
         leadingColor = colors.sex,
         icon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = colors.sex, modifier = Modifier.size(20.dp)) },
-        title = "Близость",
+        title = stringResource(R.string.agenda_intimacy),
         subtitle = parts.joinToString(" · "),
         onClick = onClick
     )
@@ -256,16 +260,23 @@ private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
         else -> colors.proposalDeclined
     }
     val parts = buildList {
-        add("От: ${Initiator.fromStorage(entry.initiator).label}")
+        add(stringResource(R.string.agenda_from, stringResource(Initiator.fromStorage(entry.initiator).labelRes)))
         add(
-            when {
-                !entry.answered -> "ожидает ответа"
-                entry.accepted -> "принято"
-                else -> "отклонено"
-            }
+            stringResource(
+                when {
+                    !entry.answered -> R.string.agenda_proposal_pending
+                    entry.accepted -> R.string.agenda_proposal_accepted
+                    else -> R.string.agenda_proposal_declined
+                }
+            )
         )
         if (entry.answered && !entry.accepted && entry.declineReason.isNotBlank()) {
-            add("причина: ${entry.declineReason}")
+            // A preset reason is stored as a code, so it has to be resolved back to words; a
+            // reason the user typed is already words and is shown as written.
+            val reason = DeclineReason.fromStorage(entry.declineReason)
+                ?.let { stringResource(it.labelRes) }
+                ?: entry.declineReason
+            add(stringResource(R.string.agenda_decline_reason, reason))
         }
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
@@ -283,7 +294,7 @@ private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
                 modifier = Modifier.size(20.dp)
             )
         },
-        title = "Предложение близости",
+        title = stringResource(R.string.agenda_proposal),
         subtitle = parts.joinToString(" · "),
         onClick = onClick
     )
@@ -293,14 +304,14 @@ private fun ProposalRow(entry: ProposalEntry, onClick: () -> Unit) {
 private fun MasturbationRow(entry: MasturbationEntry, onClick: () -> Unit) {
     val colors = LocalMarkerColors.current
     val parts = buildList {
-        add(Initiator.fromStorage(entry.person).label)
-        if (entry.orgasmCount > 0) add("Оргазмов: ${entry.orgasmCount}")
+        add(stringResource(Initiator.fromStorage(entry.person).labelRes))
+        if (entry.orgasmCount > 0) add(stringResource(R.string.agenda_orgasms, entry.orgasmCount))
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
     AgendaRow(
         leadingColor = colors.solo,
         icon = { Icon(Icons.Default.SelfImprovement, contentDescription = null, tint = colors.solo, modifier = Modifier.size(20.dp)) },
-        title = "Мастурбация",
+        title = stringResource(R.string.agenda_masturbation),
         subtitle = parts.joinToString(" · "),
         onClick = onClick
     )

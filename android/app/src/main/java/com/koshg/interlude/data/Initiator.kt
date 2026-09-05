@@ -1,8 +1,11 @@
 package com.koshg.interlude.data
 
-enum class Initiator(val storageValue: String, val label: String) {
-    ME("me", "Я"),
-    PARTNER("partner", "Партнёр");
+import androidx.annotation.StringRes
+import com.koshg.interlude.R
+
+enum class Initiator(val storageValue: String, @StringRes val labelRes: Int) {
+    ME("me", R.string.initiator_me),
+    PARTNER("partner", R.string.initiator_partner);
 
     companion object {
         fun fromStorage(value: String): Initiator =

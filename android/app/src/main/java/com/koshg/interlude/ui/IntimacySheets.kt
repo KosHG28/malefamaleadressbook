@@ -1,6 +1,7 @@
 package com.koshg.interlude.ui
 
 import android.app.DatePickerDialog
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -25,8 +26,8 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -55,13 +56,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.koshg.interlude.R
+import com.koshg.interlude.data.DeclineReason
 import com.koshg.interlude.data.Initiator
 import com.koshg.interlude.data.MasturbationEntry
 import com.koshg.interlude.data.PeriodEntry
@@ -74,11 +78,11 @@ import com.koshg.interlude.util.fullDateLabel
 import com.koshg.interlude.util.toLocalDateOrNull
 import java.time.LocalDate
 
-enum class AddType(val label: String) {
-    Period("Месячные"),
-    Sex("Секс"),
-    Proposal("Предложение"),
-    Masturbation("Мастурбация")
+enum class AddType(@StringRes val labelRes: Int) {
+    Period(R.string.type_period),
+    Sex(R.string.type_sex),
+    Proposal(R.string.type_proposal),
+    Masturbation(R.string.type_masturbation)
 }
 
 private fun AddType.icon(): ImageVector = when (this) {
@@ -130,7 +134,7 @@ private fun TypeChipRow(selected: AddType, onSelect: (AddType) -> Unit) {
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    type.label,
+                    stringResource(type.labelRes),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isSelected) Color.White else color
                 )
@@ -156,19 +160,25 @@ internal fun sheetFieldColors(): TextFieldColors {
 
 internal val sheetFieldShape = RoundedCornerShape(14.dp)
 
-/** Quick-pick decline reasons -- covers the common cases while still allowing free text via
- *  "Другое", so [com.koshg.interlude.util.computeCorrelationInsights]'s fatigue-keyword match
- *  stays reliable instead of depending on however the user happened to phrase it. */
-private val DECLINE_REASON_PRESETS = listOf("Усталость", "Настроение", "Самочувствие")
-
+/** Quick-pick decline reasons, stored as [DeclineReason] codes rather than as the words on the
+ *  chip, so the fatigue pattern in [com.koshg.interlude.util.computeCorrelationInsights] survives
+ *  both a rephrasing and a change of language. Free text stays available behind "Other" and is
+ *  stored as typed. */
 @Composable
 private fun DeclineReasonSelector(reason: String, onReasonChange: (String) -> Unit) {
     val haptics = LocalHaptics.current
     val appColors = appColors()
-    var showCustomField by remember { mutableStateOf(reason.isNotBlank() && reason !in DECLINE_REASON_PRESETS) }
+    val presets = DeclineReason.entries
+    var showCustomField by remember {
+        mutableStateOf(reason.isNotBlank() && DeclineReason.fromStorage(reason) == null)
+    }
 
     Column {
-        Text("Причина отказа", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+        Text(
+            stringResource(R.string.field_decline_reason),
+            style = MaterialTheme.typography.labelLarge,
+            color = appColors.textSecondary
+        )
         Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier
@@ -176,26 +186,32 @@ private fun DeclineReasonSelector(reason: String, onReasonChange: (String) -> Un
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            (DECLINE_REASON_PRESETS + "Другое").forEach { option ->
-                val isSelected = if (option == "Другое") showCustomField else (!showCustomField && reason == option)
+            // null stands for the "Other" chip, which opens the free-text field instead of
+            // storing a code.
+            (presets + null).forEach { preset ->
+                val isSelected = if (preset == null) {
+                    showCustomField
+                } else {
+                    !showCustomField && reason == preset.storageValue
+                }
                 Row(
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(if (isSelected) appColors.accent else appColors.accent.copy(alpha = 0.12f))
                         .clickable {
                             haptics.perform(HapticEvent.Tap)
-                            if (option == "Другое") {
+                            if (preset == null) {
                                 showCustomField = true
                                 onReasonChange("")
                             } else {
                                 showCustomField = false
-                                onReasonChange(option)
+                                onReasonChange(preset.storageValue)
                             }
                         }
                         .padding(horizontal = 14.dp, vertical = 9.dp)
                 ) {
                     Text(
-                        option,
+                        stringResource(preset?.labelRes ?: R.string.decline_reason_other),
                         color = if (isSelected) Color.White else appColors.accent,
                         style = MaterialTheme.typography.labelLarge
                     )
@@ -207,7 +223,7 @@ private fun DeclineReasonSelector(reason: String, onReasonChange: (String) -> Un
             OutlinedTextField(
                 value = reason,
                 onValueChange = onReasonChange,
-                label = { Text("Своя причина") },
+                label = { Text(stringResource(R.string.field_custom_reason)) },
                 shape = sheetFieldShape,
                 colors = sheetFieldColors(),
                 modifier = Modifier.fillMaxWidth()
@@ -333,7 +349,7 @@ fun UnifiedAddSheet(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Новая запись", style = MaterialTheme.typography.titleLarge, color = appColors.textPrimary)
+                Text(stringResource(R.string.sheet_new_entry), style = MaterialTheme.typography.titleLarge, color = appColors.textPrimary)
 
                 TypeChipRow(selected = type) { type = it }
 
@@ -344,8 +360,8 @@ fun UnifiedAddSheet(
 
                     AddType.Sex -> {
                         InitiatorSelector(initiator) { initiator = it }
-                        CountStepper("Мои оргазмы", myOrgasmCount) { myOrgasmCount = it }
-                        CountStepper("Оргазмы партнёра", partnerOrgasmCount) { partnerOrgasmCount = it }
+                        CountStepper(stringResource(R.string.field_my_orgasms), myOrgasmCount) { myOrgasmCount = it }
+                        CountStepper(stringResource(R.string.field_partner_orgasms), partnerOrgasmCount) { partnerOrgasmCount = it }
                     }
 
                     AddType.Proposal -> {
@@ -358,14 +374,14 @@ fun UnifiedAddSheet(
 
                     AddType.Masturbation -> {
                         InitiatorSelector(initiator) { initiator = it }
-                        CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
+                        CountStepper(stringResource(R.string.field_orgasm_count), orgasmCount) { orgasmCount = it }
                     }
                 }
 
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Заметка") },
+                    label = { Text(stringResource(R.string.field_note)) },
                     minLines = 2,
                     maxLines = 4,
                     shape = sheetFieldShape,
@@ -468,7 +484,7 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
     val haptics = LocalHaptics.current
     val appColors = appColors()
     Column {
-        Text("Инициатор", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+        Text(stringResource(R.string.field_initiator), style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
         Spacer(Modifier.height(6.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             Initiator.entries.forEachIndexed { index, entry ->
@@ -488,7 +504,7 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
                         inactiveContentColor = appColors.textPrimary,
                         inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
                     )
-                ) { Text(entry.label, color = if (isSelected) Color.White else appColors.textPrimary) }
+                ) { Text(stringResource(entry.labelRes), color = if (isSelected) Color.White else appColors.textPrimary) }
             }
         }
     }
@@ -498,10 +514,10 @@ private fun InitiatorSelector(selected: Initiator, onSelect: (Initiator) -> Unit
  *  choice -- storage keeps the two separate booleans (so a pre-existing, always-answered
  *  proposal from before this state existed still reads correctly), the sheets only ever show
  *  and edit this enum. */
-private enum class ProposalAnswer(val label: String) {
-    ACCEPTED("Принято"),
-    DECLINED("Отклонено"),
-    PENDING("Ожидает")
+private enum class ProposalAnswer(@StringRes val labelRes: Int) {
+    ACCEPTED(R.string.answer_accepted),
+    DECLINED(R.string.answer_declined),
+    PENDING(R.string.answer_pending)
 }
 
 private fun proposalAnswerOf(accepted: Boolean, answered: Boolean): ProposalAnswer = when {
@@ -516,7 +532,7 @@ private fun ProposalAnswerSelector(selected: ProposalAnswer, onSelect: (Proposal
     val haptics = LocalHaptics.current
     val appColors = appColors()
     Column {
-        Text("Ответ", style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
+        Text(stringResource(R.string.field_answer), style = MaterialTheme.typography.labelLarge, color = appColors.textSecondary)
         Spacer(Modifier.height(6.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             ProposalAnswer.entries.forEachIndexed { index, entry ->
@@ -536,7 +552,7 @@ private fun ProposalAnswerSelector(selected: ProposalAnswer, onSelect: (Proposal
                         inactiveContentColor = appColors.textPrimary,
                         inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
                     )
-                ) { Text(entry.label, color = if (isSelected) Color.White else appColors.textPrimary, maxLines = 1) }
+                ) { Text(stringResource(entry.labelRes), color = if (isSelected) Color.White else appColors.textPrimary, maxLines = 1) }
             }
         }
     }
@@ -552,7 +568,7 @@ private fun PeriodEndDateField(startDate: LocalDate, endDate: LocalDate?, onEndD
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
-                "Указать дату окончания",
+                stringResource(R.string.period_set_end_date),
                 style = MaterialTheme.typography.labelLarge,
                 color = appColors.textSecondary,
                 modifier = Modifier.weight(1f)
@@ -583,7 +599,7 @@ internal fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Uni
                 haptics.perform(HapticEvent.Tap)
                 onCountChange(count - 1)
             }
-        }) { Icon(Icons.Default.Remove, contentDescription = "Меньше", tint = appColors.accent) }
+        }) { Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.stepper_less), tint = appColors.accent) }
         Text(
             count.toString(),
             style = MaterialTheme.typography.titleMedium,
@@ -593,7 +609,7 @@ internal fun CountStepper(label: String, count: Int, onCountChange: (Int) -> Uni
         IconButton(onClick = {
             haptics.perform(HapticEvent.Tap)
             onCountChange(count + 1)
-        }) { Icon(Icons.Default.Add, contentDescription = "Больше", tint = appColors.accent) }
+        }) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.stepper_more), tint = appColors.accent) }
     }
 }
 
@@ -602,16 +618,16 @@ private fun SheetActions(onDismiss: () -> Unit, onDelete: (() -> Unit)?, onSave:
     val appColors = appColors()
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         if (onDelete != null) {
-            TextButton(onClick = onDelete) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.weight(1f))
         }
-        TextButton(onClick = onDismiss) { Text("Отмена", color = appColors.textSecondary) }
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = appColors.textSecondary) }
         Spacer(Modifier.width(8.dp))
         Button(
             onClick = onSave,
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
-        ) { Text("Сохранить") }
+        ) { Text(stringResource(R.string.action_save)) }
     }
 }
 
@@ -640,7 +656,7 @@ fun PeriodSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                if (entry == null) "Начало месячных" else "Редактировать запись",
+                if (entry == null) stringResource(R.string.agenda_period_start) else stringResource(R.string.sheet_edit_entry),
                 style = MaterialTheme.typography.titleLarge,
                 color = appColors.textPrimary
             )
@@ -649,7 +665,7 @@ fun PeriodSheet(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Заметка") },
+                label = { Text(stringResource(R.string.field_note)) },
                 minLines = 2,
                 maxLines = 4,
                 shape = sheetFieldShape,
@@ -700,18 +716,18 @@ fun SexSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                if (entry == null) "Близость" else "Редактировать запись",
+                if (entry == null) stringResource(R.string.agenda_intimacy) else stringResource(R.string.sheet_edit_entry),
                 style = MaterialTheme.typography.titleLarge,
                 color = appColors.textPrimary
             )
             DateField(date) { date = it }
             InitiatorSelector(initiator) { initiator = it }
-            CountStepper("Мои оргазмы", myOrgasmCount) { myOrgasmCount = it }
-            CountStepper("Оргазмы партнёра", partnerOrgasmCount) { partnerOrgasmCount = it }
+            CountStepper(stringResource(R.string.field_my_orgasms), myOrgasmCount) { myOrgasmCount = it }
+            CountStepper(stringResource(R.string.field_partner_orgasms), partnerOrgasmCount) { partnerOrgasmCount = it }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Заметка") },
+                label = { Text(stringResource(R.string.field_note)) },
                 minLines = 2,
                 maxLines = 4,
                 shape = sheetFieldShape,
@@ -766,7 +782,7 @@ fun ProposalSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                if (entry == null) "Предложение близости" else "Редактировать запись",
+                if (entry == null) stringResource(R.string.agenda_proposal) else stringResource(R.string.sheet_edit_entry),
                 style = MaterialTheme.typography.titleLarge,
                 color = appColors.textPrimary
             )
@@ -779,7 +795,7 @@ fun ProposalSheet(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Заметка") },
+                label = { Text(stringResource(R.string.field_note)) },
                 minLines = 2,
                 maxLines = 4,
                 shape = sheetFieldShape,
@@ -832,17 +848,17 @@ fun MasturbationSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                if (entry == null) "Мастурбация" else "Редактировать запись",
+                if (entry == null) stringResource(R.string.agenda_masturbation) else stringResource(R.string.sheet_edit_entry),
                 style = MaterialTheme.typography.titleLarge,
                 color = appColors.textPrimary
             )
             DateField(date) { date = it }
             InitiatorSelector(person) { person = it }
-            CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
+            CountStepper(stringResource(R.string.field_orgasm_count), orgasmCount) { orgasmCount = it }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Заметка") },
+                label = { Text(stringResource(R.string.field_note)) },
                 minLines = 2,
                 maxLines = 4,
                 shape = sheetFieldShape,

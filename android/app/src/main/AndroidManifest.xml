@@ -7,6 +7,7 @@
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:localeConfig="@xml/locales_config"
         android:backupAgent=".backup.CalendarBackupAgent"
         android:fullBackupOnly="true"
         android:icon="@mipmap/ic_launcher_wine"

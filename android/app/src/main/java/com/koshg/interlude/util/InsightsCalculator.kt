@@ -1,5 +1,8 @@
 package com.koshg.interlude.util
 
+import androidx.annotation.StringRes
+import com.koshg.interlude.R
+import com.koshg.interlude.data.DeclineReason
 import com.koshg.interlude.data.Initiator
 import com.koshg.interlude.data.MasturbationEntry
 import com.koshg.interlude.data.PeriodEntry
@@ -15,7 +18,7 @@ private const val MIN_PHASE_SAMPLES = 4
 /** How much a phase's partner-initiated share must beat the overall average to be worth calling out. */
 private const val INITIATOR_SKEW_THRESHOLD = 0.2f
 
-/** How many "усталость"-flavored declines in one phase before it reads as a pattern, not noise. */
+/** How many tiredness declines in one phase before it reads as a pattern, not noise. */
 private const val FATIGUE_DECLINE_MIN_IN_PHASE = 2
 
 private data class PhaseTally(
@@ -40,7 +43,7 @@ private data class PhaseTally(
  *
  * Two rules keep that from double-counting or overriding the user:
  *  - A proposal and a sex entry on the same day count once between them, not twice.
- *  - An explicit "отклонено" stays declined. The outcome the user typed outranks one inferred
+ *  - An explicit decline stays declined. The outcome the user typed outranks one inferred
  *    from another entry, even a contradictory one. Only a proposal still awaiting an answer is
  *    resolved by same-day sex.
  */
@@ -88,9 +91,25 @@ fun computeProposalOutcomes(
     )
 }
 
-/** One correlation finding, tagged with the phase it's about so the UI can prefix it with that
- *  phase's legend color for a quick visual anchor. */
-data class CorrelationInsight(val phase: CyclePhase, val sentence: String)
+/**
+ * One correlation finding: which phase it is about (so the UI can prefix it with that phase's
+ * legend color for a quick visual anchor), what kind of finding it is, and the percentage it
+ * turns on.
+ *
+ * The finding is data, not a sentence. Building the sentence here would hardcode one language
+ * into the statistics engine, and the wording has to come from the resources that follow the
+ * device's locale like everything else on screen.
+ */
+data class CorrelationInsight(val phase: CyclePhase, val kind: Kind, val percent: Int) {
+    enum class Kind(@StringRes val textRes: Int) {
+        PARTNER_INITIATES(R.string.insight_partner_initiates),
+        HIGHEST_ACCEPTANCE(R.string.insight_highest_acceptance),
+        MOST_DECLINES(R.string.insight_most_declines),
+
+        /** Carries no percentage -- its wording takes only the phase name. */
+        FATIGUE_CLUSTER(R.string.insight_fatigue_cluster)
+    }
+}
 
 data class CorrelationInsights(val insights: List<CorrelationInsight>)
 
@@ -142,7 +161,9 @@ fun computeCorrelationInsights(
             tally.accepted++
         } else {
             tally.declined++
-            if (entry.declineReason.contains("устал", ignoreCase = true)) tally.fatigueDeclines++
+            if (DeclineReason.fromStorage(entry.declineReason) == DeclineReason.FATIGUE) {
+                tally.fatigueDeclines++
+            }
         }
     }
 
@@ -167,7 +188,8 @@ fun computeCorrelationInsights(
             if (share - overallPartnerShare >= INITIATOR_SKEW_THRESHOLD) {
                 insights += CorrelationInsight(
                     phase,
-                    "В фазу «${phase.label}» инициатива чаще исходит от партнёра (${(share * 100).roundToInt()}% случаев)."
+                    CorrelationInsight.Kind.PARTNER_INITIATES,
+                    (share * 100).roundToInt()
                 )
             }
         }
@@ -175,12 +197,12 @@ fun computeCorrelationInsights(
     val withProposals = tallies.entries.filter { it.value.totalProposals >= MIN_PHASE_SAMPLES }
     withProposals.maxByOrNull { it.value.accepted.toFloat() / it.value.totalProposals }?.let { (phase, tally) ->
         val rate = (tally.accepted.toFloat() / tally.totalProposals * 100).roundToInt()
-        insights += CorrelationInsight(phase, "В фазу «${phase.label}» процент принятых предложений максимален ($rate%).")
+        insights += CorrelationInsight(phase, CorrelationInsight.Kind.HIGHEST_ACCEPTANCE, rate)
     }
     withProposals.minByOrNull { it.value.accepted.toFloat() / it.value.totalProposals }?.let { (phase, tally) ->
         val declineRate = ((1f - tally.accepted.toFloat() / tally.totalProposals) * 100).roundToInt()
         if (declineRate > 0) {
-            insights += CorrelationInsight(phase, "В фазу «${phase.label}» отказов больше всего ($declineRate%).")
+            insights += CorrelationInsight(phase, CorrelationInsight.Kind.MOST_DECLINES, declineRate)
         }
     }
 
@@ -188,18 +210,39 @@ fun computeCorrelationInsights(
         .filter { it.value.fatigueDeclines >= FATIGUE_DECLINE_MIN_IN_PHASE }
         .maxByOrNull { it.value.fatigueDeclines }
         ?.let { (phase, _) ->
-            insights += CorrelationInsight(
-                phase,
-                "Отказы по причине усталости чаще всего приходятся на фазу «${phase.label}» -- " +
-                    "возможно, стоит планировать больше отдыха в этот период."
-            )
+            insights += CorrelationInsight(phase, CorrelationInsight.Kind.FATIGUE_CLUSTER, percent = 0)
         }
 
     return CorrelationInsights(insights.distinct())
 }
 
-/** A single, non-alarming nudge shown on the calendar -- never more than one at a time. */
-data class ProactiveSuggestion(val title: String, val message: String)
+/**
+ * A single, non-alarming nudge shown on the calendar -- never more than one at a time.
+ *
+ * Like [CorrelationInsight], this carries what was noticed rather than the words for it: [reason]
+ * is why the nudge fired and [idea] is which suggestion it settled on, and the UI turns the pair
+ * into a sentence in the reader's own language.
+ */
+data class ProactiveSuggestion(val reason: Reason, val idea: Idea) {
+    enum class Reason(@StringRes val textRes: Int) {
+        LONG_ABSENCE(R.string.suggestion_long_absence),
+        FATIGUE(R.string.suggestion_fatigue),
+        BOTH(R.string.suggestion_both)
+    }
+
+    enum class Idea(@StringRes val textRes: Int) {
+        /** The couple's own notes mention a massage they liked. */
+        MASSAGE_LIKED(R.string.suggestion_idea_massage_liked),
+        MASSAGE_GENERIC(R.string.suggestion_idea_massage_generic)
+    }
+}
+
+/** Words looked for in free-text notes to tell whether a massage went down well before.
+ *
+ *  Notes are written in whatever language the user pleases, and unlike a decline reason there is
+ *  no code to store for them -- so this is a best-effort keyword list per supported language, not
+ *  a reliable signal. Getting it wrong only picks the more generic of two friendly phrasings. */
+private val MASSAGE_KEYWORDS = listOf("массаж", "massage")
 
 /** No intimacy/masturbation entry for this long reads as "a while", worth a gentle nudge. */
 private const val LONG_ABSENCE_DAYS_THRESHOLD = 14L
@@ -229,30 +272,26 @@ fun computeProactiveSuggestion(
 
     val recentFatigueDeclines = proposalEntries.count { entry ->
         entry.answered && !entry.accepted &&
-            entry.declineReason.contains("устал", ignoreCase = true) &&
+            DeclineReason.fromStorage(entry.declineReason) == DeclineReason.FATIGUE &&
             entry.date.toLocalDateOrNull()?.let { ChronoUnit.DAYS.between(it, today) <= FATIGUE_LOOKBACK_DAYS } == true
     }
     val frequentFatigue = recentFatigueDeclines >= FATIGUE_DECLINE_THRESHOLD
 
     if (!longAbsence && !frequentFatigue) return null
 
-    val likedMassageBefore = sexEntries.any { it.notes.contains("массаж", ignoreCase = true) } ||
-        masturbationEntries.any { it.notes.contains("массаж", ignoreCase = true) }
+    fun String.mentionsMassage() = MASSAGE_KEYWORDS.any { contains(it, ignoreCase = true) }
+    val likedMassageBefore = sexEntries.any { it.notes.mentionsMassage() } ||
+        masturbationEntries.any { it.notes.mentionsMassage() }
+
+    val reason = when {
+        longAbsence && frequentFatigue -> ProactiveSuggestion.Reason.BOTH
+        longAbsence -> ProactiveSuggestion.Reason.LONG_ABSENCE
+        else -> ProactiveSuggestion.Reason.FATIGUE
+    }
     val idea = if (likedMassageBefore) {
-        "например, массаж без продолжения -- раньше вам обоим это нравилось"
+        ProactiveSuggestion.Idea.MASSAGE_LIKED
     } else {
-        "например, просто массаж без продолжения, без ожиданий"
+        ProactiveSuggestion.Idea.MASSAGE_GENERIC
     }
-
-    val message = when {
-        longAbsence && frequentFatigue ->
-            "Давно не было близости, а среди недавних отказов часто звучит усталость. " +
-                "Может, устроить спокойный вечер вдвоём -- $idea?"
-        longAbsence ->
-            "Давно не было записей о близости. Может, устроить расслабляющий вечер -- $idea?"
-        else ->
-            "В недавних отказах часто звучит усталость. Возможно, стоит запланировать больше отдыха -- $idea."
-    }
-
-    return ProactiveSuggestion(title = "Идея для вечера", message = message)
+    return ProactiveSuggestion(reason, idea)
 }

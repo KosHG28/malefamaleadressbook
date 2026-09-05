@@ -25,11 +25,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.koshg.interlude.data.PeriodEntry
+import com.koshg.interlude.R
 import com.koshg.interlude.data.ProposalEntry
 import com.koshg.interlude.haptics.HapticEvent
 import com.koshg.interlude.haptics.LocalHaptics
@@ -84,10 +86,10 @@ fun YearOverviewScreen(
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = appColors.textPrimary)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = appColors.textPrimary)
                 }
                 Text(
-                    text = "Год целиком",
+                    text = stringResource(R.string.year_overview_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = appColors.textPrimary,
@@ -103,7 +105,7 @@ fun YearOverviewScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 IconButton(onClick = { haptics.perform(HapticEvent.Tap); year-- }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий год", tint = appColors.textPrimary)
+                    Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.year_previous), tint = appColors.textPrimary)
                 }
                 Text(
                     year.toString(),
@@ -112,7 +114,7 @@ fun YearOverviewScreen(
                     color = appColors.textPrimary
                 )
                 IconButton(onClick = { haptics.perform(HapticEvent.Tap); year++ }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Следующий год", tint = appColors.textPrimary)
+                    Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.year_next), tint = appColors.textPrimary)
                 }
             }
 

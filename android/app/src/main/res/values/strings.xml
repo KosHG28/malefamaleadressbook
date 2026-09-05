@@ -1,3 +1,282 @@
 <resources>
     <string name="app_name">Interlude</string>
+
+    <!-- Date formats. Kept as patterns rather than assembled in code because the order of day,
+         month and weekday differs by language: Russian writes "3 September", English "September 3". -->
+    <string name="pattern_month_year">LLLL yyyy</string>
+    <string name="pattern_day_agenda">EEEE, MMMM d</string>
+    <string name="pattern_short_date">MMMM d</string>
+    <string name="pattern_full_date">MMMM d, yyyy</string>
+    <string name="pattern_month_short">MMM yy</string>
+
+    <!-- Cycle phases -->
+    <string name="phase_menstrual">Menstruation</string>
+    <string name="phase_follicular">Follicular</string>
+    <string name="phase_ovulatory">Ovulation</string>
+    <string name="phase_luteal">Luteal</string>
+
+    <!-- Who -->
+    <string name="initiator_me">Me</string>
+    <string name="initiator_partner">Partner</string>
+
+    <!-- Marker kinds -->
+    <string name="marker_sex">Intimacy</string>
+    <string name="marker_proposal_accepted">Proposal accepted</string>
+    <string name="marker_proposal_declined">Proposal declined</string>
+    <string name="marker_proposal_pending">Proposal pending</string>
+    <string name="marker_solo">Solo</string>
+
+    <!-- Color schemes -->
+    <string name="palette_wine">Wine</string>
+    <string name="palette_midnight">Midnight</string>
+    <string name="palette_forest">Forest</string>
+    <string name="palette_plum">Plum</string>
+    <string name="palette_graphite">Graphite</string>
+
+    <!-- Theme -->
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- App lock -->
+    <string name="lock_prompt_title">Unlock</string>
+    <string name="lock_screen_title">App locked</string>
+    <string name="lock_screen_subtitle">Confirm it\'s you to continue</string>
+    <string name="lock_unlock_button">Unlock</string>
+
+    <!-- Reminders -->
+    <string name="notification_channel_name">Cycle reminders</string>
+    <string name="notification_channel_description">Approaching period and ovulation day</string>
+    <string name="notification_period_title">Period is close</string>
+    <string name="notification_period_today">Predicted for today</string>
+    <string name="notification_period_tomorrow">Predicted for tomorrow</string>
+    <plurals name="notification_period_in_days">
+        <item quantity="one">Predicted in %d day</item>
+        <item quantity="other">Predicted in %d days</item>
+    </plurals>
+    <string name="notification_ovulation_title">Ovulation day</string>
+    <string name="notification_ovulation_today">Today is the estimated ovulation day, on the current forecast</string>
+    <string name="notification_ovulation_yesterday">Yesterday was the estimated ovulation day, on the current forecast</string>
+    <string name="notification_action_mark_start">Mark start</string>
+    <!-- Decline reasons -->
+    <string name="decline_reason_fatigue">Tiredness</string>
+    <string name="decline_reason_mood">Mood</string>
+    <string name="decline_reason_wellbeing">Not feeling well</string>
+    <string name="decline_reason_other">Other</string>
+    <!-- Phase tips: one is picked per day, deterministically. Pools may differ in length
+         between languages; the picker takes the index modulo whatever it loads. -->
+    <string-array name="phase_tips_menstrual">
+        <item>Cramps and low energy are likely. Care without pressure lands better right now — a hot water bottle, tea, a blanket, a film together — and don't push for intimacy unless she brings it up.</item>
+        <item>Her body is recovering, so there may be less energy than usual. Quietly taking over the household chores is real support, no speech required.</item>
+        <item>Discomfort and irritability these days are physiology, not about you. Don't take sharpness personally.</item>
+        <item>A good moment to offer a hot water bottle or a painkiller if she forgot, rather than waiting to be asked.</item>
+    </string-array>
+    <string-array name="phase_tips_follicular">
+        <item>Energy and mood usually climb. Good time for active dates, new ideas and plans together.</item>
+        <item>Drive and focus are often on the rise — a convenient moment to talk through shared plans or start something new together.</item>
+        <item>Mood is usually steady and open. A good time for conversations you have been putting off.</item>
+        <item>A good window for something active — a walk, sport, a trip. There is usually energy to spare.</item>
+    </string-array>
+    <string-array name="phase_tips_ovulatory">
+        <item>Often the peak of energy and libido. A fitting moment for romance and closeness — but go by how she feels right now, not by the phase alone.</item>
+        <item>Confidence and sociability are frequently at their highest these days — a good time for something memorable together.</item>
+        <item>The peak of the cycle guarantees no mood — it only shifts the odds slightly. The final word is always how she actually feels.</item>
+        <item>If it has been a while since a proper date, these days are statistically a better bet for suggesting one.</item>
+    </string-array>
+    <string-array name="phase_tips_luteal">
+        <item>Mood swings and PMS are possible towards the end of this phase. More patience, less criticism — a quiet evening usually goes down better than an ambitious plan.</item>
+        <item>Cravings, tiredness and sensitivity to small things are ordinary companions of this phase, not grounds for an argument.</item>
+        <item>A good time to slow down together — fewer loud plans, more quiet time side by side.</item>
+        <item>If she is suddenly sharper or more closed off than usual, that is more often the phase than anything about you.</item>
+    </string-array>
+    <!-- Correlation findings. %1$s is the phase name, %2$d a percentage. -->
+    <string name="insight_partner_initiates">During %1$s, the partner is more often the one initiating (%2$d%% of the time).</string>
+    <string name="insight_highest_acceptance">During %1$s, the share of accepted proposals is at its highest (%2$d%%).</string>
+    <string name="insight_most_declines">During %1$s there are the most declines (%2$d%%).</string>
+    <string name="insight_fatigue_cluster">Declines citing tiredness fall mostly during %1$s — it may be worth planning more rest around then.</string>
+
+    <!-- Proactive suggestion. %1$s is the idea below. -->
+    <string name="suggestion_title">An idea for the evening</string>
+    <string name="suggestion_long_absence">There hasn't been an intimacy entry in a while. How about a relaxed evening — %1$s?</string>
+    <string name="suggestion_fatigue">Tiredness comes up often in the recent declines. It may be worth planning more rest — %1$s.</string>
+    <string name="suggestion_both">It has been a while since any intimacy, and tiredness comes up often in the recent declines. How about a quiet evening together — %1$s?</string>
+    <string name="suggestion_idea_massage_liked">a massage with nothing expected to follow, say — you both enjoyed that before</string>
+    <string name="suggestion_idea_massage_generic">just a massage with nothing expected to follow, say, no expectations</string>
+    <!-- Year overview -->
+    <string name="year_overview_title">The whole year</string>
+    <string name="action_close">Close</string>
+    <string name="year_previous">Previous year</string>
+    <string name="year_next">Next year</string>
+
+    <!-- Common actions -->
+    <string name="action_add">Add</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Calendar event sheet -->
+    <string name="event_new_title">New event</string>
+    <string name="event_edit_title">Edit event</string>
+    <string name="event_field_title">Title</string>
+    <string name="event_all_day">All day</string>
+    <string name="event_start">Start</string>
+    <string name="event_end">End</string>
+    <string name="event_color">Color</string>
+    <string name="field_note">Note</string>
+
+    <!-- Day agenda -->
+    <string name="agenda_phase_tip">Cycle phase tip</string>
+    <string name="agenda_empty">No entries for this day. Tap “+” to add one.</string>
+    <string name="agenda_period_start">Period start</string>
+    <string name="agenda_intimacy">Intimacy</string>
+    <string name="agenda_proposal">Intimacy proposal</string>
+    <string name="agenda_masturbation">Masturbation</string>
+    <string name="agenda_initiator">Initiator: %1$s</string>
+    <string name="agenda_from">From: %1$s</string>
+    <string name="agenda_my_orgasms">My orgasms: %1$d</string>
+    <string name="agenda_partner_orgasms">Partner's orgasms: %1$d</string>
+    <string name="agenda_orgasms">Orgasms: %1$d</string>
+    <string name="agenda_proposal_pending">awaiting an answer</string>
+    <string name="agenda_proposal_accepted">accepted</string>
+    <string name="agenda_proposal_declined">declined</string>
+    <string name="agenda_decline_reason">reason: %1$s</string>
+    <!-- History and trends -->
+    <string name="history_title">History and trends</string>
+    <string name="history_section_cycle_length">Cycle length</string>
+    <string name="history_need_two_cycles">Add at least two periods to see statistics.</string>
+    <string name="history_irregular">Irregular cycle — the lengths vary a lot, so the forecast is less precise</string>
+    <string name="history_average">Average</string>
+    <string name="history_minimum">Minimum</string>
+    <string name="history_maximum">Maximum</string>
+    <plurals name="days_short">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="history_no_entries">No entries yet.</string>
+    <string name="history_section_proposals">Proposals</string>
+    <string name="history_accepted_of">Accepted %1$d of %2$d (%3$d%%)</string>
+    <string name="history_pending">Awaiting an answer: %1$d</string>
+    <string name="history_from_intimacy">Of those, from intimacy entries: %1$d</string>
+    <string name="history_section_correlations">Correlations</string>
+    <string name="history_not_enough_data">Not enough entries yet to see patterns across cycle phases.</string>
+    <string name="history_date_range">%1$s → %2$s</string>
+    <!-- Add / edit sheets -->
+    <string name="sheet_new_entry">New entry</string>
+    <string name="sheet_edit_entry">Edit entry</string>
+    <string name="type_period">Period</string>
+    <string name="type_sex">Intimacy</string>
+    <string name="type_proposal">Proposal</string>
+    <string name="type_masturbation">Masturbation</string>
+    <string name="field_initiator">Who started it</string>
+    <string name="field_answer">Answer</string>
+    <string name="field_decline_reason">Reason for declining</string>
+    <string name="field_custom_reason">Your own reason</string>
+    <string name="field_my_orgasms">My orgasms</string>
+    <string name="field_partner_orgasms">Partner's orgasms</string>
+    <string name="field_orgasm_count">Number of orgasms</string>
+    <string name="answer_accepted">Accepted</string>
+    <string name="answer_declined">Declined</string>
+    <string name="answer_pending">Pending</string>
+    <string name="period_set_end_date">Set an end date</string>
+    <string name="stepper_less">Less</string>
+    <string name="stepper_more">More</string>
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_app_lock">App lock</string>
+    <string name="settings_app_lock_hint">Biometrics or the device PIN/password on launch</string>
+    <string name="settings_section_marker_colors">Marker colors</string>
+    <string name="settings_marker_colors_hint">Color of the ring around the date</string>
+    <string name="action_collapse">Collapse</string>
+    <string name="action_expand">Expand</string>
+    <string name="settings_reset_defaults">Reset to defaults</string>
+    <string name="settings_section_legends">Legends</string>
+    <string name="settings_phase_legend">Phase legend</string>
+    <string name="settings_phase_legend_hint">Cycle phase colors below the calendar</string>
+    <string name="settings_marker_legend">Marker legend</string>
+    <string name="settings_marker_legend_hint">Ring colors: intimacy, proposals, solo</string>
+    <string name="settings_legends_note">Tapping a row in either legend opens an explanation</string>
+    <string name="settings_section_color_scheme">Color scheme</string>
+    <string name="settings_color_scheme_hint">Button accent and calendar background — phase colors don't change</string>
+    <string name="settings_preview">Preview</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_phase_display">Phase display</string>
+    <string name="settings_fill">Filled</string>
+    <string name="settings_dashed">Dashed</string>
+    <string name="settings_adaptive_theme">Adaptive theme</string>
+    <string name="settings_adaptive_theme_hint">The accent of the add button and the selected date shifts smoothly with the cycle phase</string>
+    <string name="settings_section_hints">Hints</string>
+    <string name="settings_suggestions">Evening ideas</string>
+    <string name="settings_suggestions_hint">An unobtrusive hint on the calendar after a long gap, or when tiredness comes up often in declines</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_reminders">Cycle reminders</string>
+    <string name="settings_reminders_hint">Two days before the expected period and on the estimated ovulation day, on the same forecast the calendar uses. Entirely on-device, no server.</string>
+    <string name="settings_section_data">Data</string>
+    <string name="settings_data_hint">Export and import to a file — separate from the system backup. Save it anywhere, including Google Drive, and move it to another device.</string>
+    <string name="settings_export">Export</string>
+    <string name="settings_import">Import</string>
+    <string name="settings_system_backup">Google system backup</string>
+    <string name="settings_last_backup">Last backup: %1$s</string>
+    <string name="settings_no_backup_yet">No backup has run on this device yet</string>
+    <string name="settings_restored_from_backup">Data restored from a backup: %1$s</string>
+    <string name="settings_backup_conditions">Android runs it on its own, roughly once a day and only while the phone is charging, idle and on Wi-Fi. Restoring happens only when the app is installed on a new device, not on an update.</string>
+    <string name="settings_section_cycle_model">Cycle model</string>
+    <string name="settings_luteal_length">Luteal phase length (days)</string>
+    <string name="settings_luteal_hint">From ovulation to the start of the next period. %1$d days by default — change it only if you know your own figure.</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_about_local">All data (cycles, intimacy, events) is stored only on this device and is never sent anywhere.</string>
+    <string name="settings_about_backup">If Android backup is switched on in the system, data may be saved to the device's Google account — the OS does this itself, without the app taking part; it is turned off in the phone's system settings.</string>
+    <!-- Calendar screen -->
+    <string name="calendar_cycle_day">Cycle, day %1$d</string>
+    <string name="calendar_cycle">Cycle</string>
+    <string name="calendar_today">Today</string>
+    <string name="calendar_add_period_for_forecast">Add a period date to see the forecast</string>
+    <string name="calendar_period_due">Period is due</string>
+    <string name="calendar_period_expected_today">Expected day of the period</string>
+    <string name="calendar_next_period_in">Next period in %1$d days</string>
+    <string name="calendar_next_period_between">Next period in %1$d–%2$d days</string>
+    <string name="calendar_irregular">Irregular cycle — the calendar forecast is less precise</string>
+    <string name="calendar_drag_hint">Drag your finger across the period days</string>
+    <string name="calendar_range_off">Turn off period range selection</string>
+    <string name="calendar_range_on">Select a period range by dragging</string>
+    <string name="calendar_hide_hint">Hide hint</string>
+    <string name="calendar_orgasm">Orgasm</string>
+    <string name="calendar_settings">Settings</string>
+    <string name="calendar_answer_proposal">Answer the proposal</string>
+    <string name="calendar_add_period_predicted">Add: a period is predicted to start</string>
+
+    <!-- Prediction accuracy, shown after logging a period -->
+    <string name="prediction_exact">The forecast was spot on!</string>
+    <plurals name="prediction_late">
+        <item quantity="one">Started %d day later than forecast</item>
+        <item quantity="other">Started %d days later than forecast</item>
+    </plurals>
+    <plurals name="prediction_early">
+        <item quantity="one">Started %d day earlier than forecast</item>
+        <item quantity="other">Started %d days earlier than forecast</item>
+    </plurals>
+
+    <!-- Empty state and first-launch hint -->
+    <string name="empty_title">No entries yet</string>
+    <string name="empty_body">Mark the start date of the last period — the calendar will show the cycle phases and the next forecast straight away</string>
+    <string name="empty_action">Mark the period start</string>
+    <string name="onboarding_hint">The icons above — history and trends on the left, settings on the right</string>
+    <string name="onboarding_got_it">Got it</string>
+
+    <!-- Marker legend tooltips -->
+    <string name="legend_sex_tip">Intimacy logged on this day.</string>
+    <string name="legend_accepted_tip">An intimacy proposal was made and accepted.</string>
+    <string name="legend_declined_tip">An intimacy proposal was made but declined.</string>
+    <string name="legend_pending_tip">A proposal was made, but the answer hasn't been recorded yet.</string>
+    <string name="legend_solo_tip">Masturbation logged on this day. If there was intimacy the same day, the ring shows that instead — the full contents of the day are visible by tapping the date.</string>
+
+    <!-- Data export / import results -->
+    <string name="data_open_write_failed">Couldn't open the file for writing</string>
+    <string name="data_saved">Data saved</string>
+    <string name="data_save_failed">Couldn't save the data</string>
+    <string name="data_open_read_failed">Couldn't open the file for reading</string>
+    <string name="data_loaded">Data loaded</string>
+    <string name="data_read_failed">Couldn't read the file</string>
 </resources>

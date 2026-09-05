@@ -23,15 +23,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.koshg.interlude.R
 import com.koshg.interlude.data.MasturbationEntry
 import com.koshg.interlude.data.PeriodEntry
 import com.koshg.interlude.data.ProposalEntry
 import com.koshg.interlude.data.SexEntry
 import com.koshg.interlude.ui.theme.appColors
 import com.koshg.interlude.ui.theme.phaseColor
+import com.koshg.interlude.util.CorrelationInsight
 import com.koshg.interlude.util.computeCorrelationInsights
 import com.koshg.interlude.util.computeProposalOutcomes
 import com.koshg.interlude.util.monthShortLabel
@@ -73,10 +78,10 @@ fun HistoryScreen(
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = appColors.textPrimary)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = appColors.textPrimary)
                 }
                 Text(
-                    text = "История и тренды",
+                    text = stringResource(R.string.history_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = appColors.textPrimary,
@@ -85,7 +90,7 @@ fun HistoryScreen(
                         .padding(start = 4.dp)
                 )
                 IconButton(onClick = onOpenYearOverview) {
-                    Icon(Icons.Default.GridView, contentDescription = "Год целиком", tint = appColors.textPrimary)
+                    Icon(Icons.Default.GridView, contentDescription = stringResource(R.string.year_overview_title), tint = appColors.textPrimary)
                 }
             }
 
@@ -96,9 +101,9 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     item { CycleLengthSection(periods, isIrregular) }
-                    item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
+                    item { FrequencySection(stringResource(R.string.agenda_intimacy), sexEntries.map { it.date }, appColors.intimacy) }
                     item { ProposalStatsSection(proposalEntries, sexEntries) }
-                    item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
+                    item { FrequencySection(stringResource(R.string.agenda_masturbation), masturbationEntries.map { it.date }, appColors.solo) }
                     item {
                         CorrelationInsightsSection(
                             periods,
@@ -156,11 +161,12 @@ private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean)
     val lengths = remember(sortedStarts) {
         sortedStarts.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
     }
+    val context = LocalContext.current
 
-    SectionCard(title = "Длина цикла") {
+    SectionCard(title = stringResource(R.string.history_section_cycle_length)) {
         if (lengths.isEmpty()) {
             Text(
-                "Добавьте хотя бы два цикла месячных, чтобы увидеть статистику.",
+                stringResource(R.string.history_need_two_cycles),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
@@ -176,7 +182,7 @@ private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean)
                 ) {
                     Icon(Icons.Default.Warning, contentDescription = null, tint = appColors.warning, modifier = Modifier.size(16.dp))
                     Text(
-                        "Цикл нерегулярный -- длины сильно разбросаны, прогноз менее точен",
+                        stringResource(R.string.history_irregular),
                         style = MaterialTheme.typography.labelSmall,
                         color = appColors.warning
                     )
@@ -185,9 +191,9 @@ private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean)
             }
             val average = lengths.average().roundToInt()
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatBlock("Средняя", "$average дн.")
-                StatBlock("Минимум", "${lengths.min()} дн.")
-                StatBlock("Максимум", "${lengths.max()} дн.")
+                StatBlock(stringResource(R.string.history_average), daysLabel(average))
+                StatBlock(stringResource(R.string.history_minimum), daysLabel(lengths.min()))
+                StatBlock(stringResource(R.string.history_maximum), daysLabel(lengths.max()))
             }
             Spacer(Modifier.height(10.dp))
             sortedStarts.zipWithNext().forEachIndexed { index, (a, b) ->
@@ -198,11 +204,15 @@ private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean)
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "${shortDateLabel(a)} → ${shortDateLabel(b)}",
+                        stringResource(
+                            R.string.history_date_range,
+                            context.shortDateLabel(a),
+                            context.shortDateLabel(b)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = appColors.textSecondary
                     )
-                    Text("${lengths[index]} дн.", style = MaterialTheme.typography.bodySmall, color = appColors.textPrimary)
+                    Text(daysLabel(lengths[index]), style = MaterialTheme.typography.bodySmall, color = appColors.textPrimary)
                 }
             }
         }
@@ -212,6 +222,7 @@ private fun CycleLengthSection(periods: List<PeriodEntry>, isIrregular: Boolean)
 @Composable
 private fun FrequencySection(title: String, dates: List<String>, color: Color) {
     val appColors = appColors()
+    val context = LocalContext.current
     val today = LocalDate.now()
     val months = remember { (5 downTo 0).map { YearMonth.from(today).minusMonths(it.toLong()) } }
     val counts = remember(dates) {
@@ -225,7 +236,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
     SectionCard(title = title) {
         if (counts.all { it == 0 }) {
             Text(
-                "Записей пока нет.",
+                stringResource(R.string.history_no_entries),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
@@ -235,7 +246,7 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
                     val count = counts[index]
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            monthShortLabel(month),
+                            context.monthShortLabel(month),
                             style = MaterialTheme.typography.labelSmall,
                             color = appColors.textSecondary,
                             modifier = Modifier.width(56.dp)
@@ -272,10 +283,10 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
 @Composable
 private fun ProposalStatsSection(proposals: List<ProposalEntry>, sexEntries: List<SexEntry>) {
     val appColors = appColors()
-    SectionCard(title = "Предложения") {
+    SectionCard(title = stringResource(R.string.history_section_proposals)) {
         if (proposals.isEmpty() && sexEntries.isEmpty()) {
             Text(
-                "Записей пока нет.",
+                stringResource(R.string.history_no_entries),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
@@ -292,21 +303,21 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>, sexEntries: Lis
             if (total > 0) {
                 val percent = accepted * 100 / total
                 Text(
-                    "Принято $accepted из $total ($percent%)",
+                    stringResource(R.string.history_accepted_of, accepted, total, percent),
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
                 )
             }
             if (pendingCount > 0) {
                 Text(
-                    "Ожидает ответа: $pendingCount",
+                    stringResource(R.string.history_pending, pendingCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.warning
                 )
             }
             if (outcomes.fromSex > 0) {
                 Text(
-                    "Из них по записям близости: ${outcomes.fromSex}",
+                    stringResource(R.string.history_from_intimacy, outcomes.fromSex),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary
                 )
@@ -353,10 +364,10 @@ private fun CorrelationInsightsSection(
     val insights = remember(periods, sexEntries, proposalEntries, marginDays, lutealPhaseDays) {
         computeCorrelationInsights(periods, sexEntries, proposalEntries, marginDays, lutealPhaseDays)
     }
-    SectionCard(title = "Корреляции") {
+    SectionCard(title = stringResource(R.string.history_section_correlations)) {
         if (insights.insights.isEmpty()) {
             Text(
-                "Пока недостаточно записей, чтобы увидеть закономерности по фазам цикла.",
+                stringResource(R.string.history_not_enough_data),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
@@ -372,7 +383,7 @@ private fun CorrelationInsightsSection(
                                 .background(appColors.phaseColor(insight.phase))
                         )
                         Text(
-                            insight.sentence,
+                            insightSentence(insight),
                             style = MaterialTheme.typography.bodyMedium,
                             color = appColors.textPrimary
                         )
@@ -380,5 +391,24 @@ private fun CorrelationInsightsSection(
                 }
             }
         }
+    }
+}
+
+/** "5 days" / "5 дн." — a plural, since Russian inflects the word by count and picking the form
+ *  in code would bake one language's rules into the layout. */
+@Composable
+private fun daysLabel(days: Int): String =
+    pluralStringResource(R.plurals.days_short, days, days)
+
+/** Turns a [CorrelationInsight] into the sentence for it. The engine returns what it found, not
+ *  the words -- see [CorrelationInsight] -- and FATIGUE_CLUSTER is the one kind whose wording
+ *  takes only the phase, with no percentage to place. */
+@Composable
+private fun insightSentence(insight: CorrelationInsight): String {
+    val phase = stringResource(insight.phase.labelRes)
+    return if (insight.kind == CorrelationInsight.Kind.FATIGUE_CLUSTER) {
+        stringResource(insight.kind.textRes, phase)
+    } else {
+        stringResource(insight.kind.textRes, phase, insight.percent)
     }
 }

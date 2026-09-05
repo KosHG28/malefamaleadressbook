@@ -28,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.koshg.interlude.R
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
@@ -81,7 +83,7 @@ fun AppLockGate(content: @Composable () -> Unit) {
             }
         )
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Разблокировка")
+            .setTitle(context.getString(R.string.lock_prompt_title))
             .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
             .build()
         prompt.authenticate(promptInfo)
@@ -110,14 +112,14 @@ fun AppLockGate(content: @Composable () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "Приложение заблокировано",
+                stringResource(R.string.lock_screen_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = appColors.textPrimary,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Подтвердите личность, чтобы продолжить",
+                stringResource(R.string.lock_screen_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary,
                 textAlign = TextAlign.Center
@@ -127,7 +129,7 @@ fun AppLockGate(content: @Composable () -> Unit) {
                 onClick = { promptUnlock() },
                 colors = ButtonDefaults.buttonColors(containerColor = appColors.accent, contentColor = Color.White)
             ) {
-                Text("Разблокировать")
+                Text(stringResource(R.string.lock_unlock_button))
             }
         }
     }

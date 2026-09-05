@@ -1,5 +1,7 @@
 package com.koshg.interlude.ui.theme
 
+import androidx.annotation.StringRes
+import com.koshg.interlude.R
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -42,23 +44,23 @@ data class AppColors(
 /** A named color scheme the user picks in Settings -- only the "skin" (accent + backgrounds)
  *  changes between palettes; phase/marker colors carry semantic meaning (menstrual = red,
  *  ovulation = teal, etc.) and stay the same across every palette. */
-enum class Palette(val label: String) {
-    WINE("Винная"),
-    MIDNIGHT("Полночь"),
-    FOREST("Лес"),
-    PLUM("Слива"),
-    GRAPHITE("Графит")
+enum class Palette(@StringRes val labelRes: Int) {
+    WINE(R.string.palette_wine),
+    MIDNIGHT(R.string.palette_midnight),
+    FOREST(R.string.palette_forest),
+    PLUM(R.string.palette_plum),
+    GRAPHITE(R.string.palette_graphite)
 }
 
 val LocalPalette = compositionLocalOf { Palette.WINE }
 
 /** Whether the app follows the system's light/dark setting or overrides it. */
-enum class ThemeMode(val label: String) {
-    // "Система" (not the longer "Как в системе") deliberately matches the other two labels'
-    // length so all three segments stay single-line in the settings row at normal font scale.
-    SYSTEM("Система"),
-    LIGHT("Светлая"),
-    DARK("Тёмная")
+enum class ThemeMode(@StringRes val labelRes: Int) {
+    // Each label is kept about as short as the other two in every translation, so all three
+    // segments stay single-line in the settings row at normal font scale.
+    SYSTEM(R.string.theme_system),
+    LIGHT(R.string.theme_light),
+    DARK(R.string.theme_dark)
 }
 
 val LocalThemeMode = compositionLocalOf { ThemeMode.SYSTEM }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -17,37 +18,37 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,11 +76,13 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.koshg.interlude.R
 import com.koshg.interlude.data.CalendarEvent
 import com.koshg.interlude.data.DataSnapshot
 import com.koshg.interlude.data.MasturbationEntry
@@ -104,21 +107,21 @@ import com.koshg.interlude.ui.theme.resolveDark
 import com.koshg.interlude.util.CyclePhase
 import com.koshg.interlude.util.CycleStats
 import com.koshg.interlude.util.ProactiveSuggestion
-import com.koshg.interlude.util.WEEKDAY_SHORT_NAMES
 import com.koshg.interlude.util.computeProactiveSuggestion
 import com.koshg.interlude.util.cyclePhaseFor
-import com.koshg.interlude.util.ovulationDateFor
 import com.koshg.interlude.util.cyclePhaseProgressFor
 import com.koshg.interlude.util.monthYearLabel
+import com.koshg.interlude.util.ovulationDateFor
 import com.koshg.interlude.util.phaseTipForMen
 import com.koshg.interlude.util.toLocalDateOrNull
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.koshg.interlude.util.weekdayShortNames
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import kotlin.math.pow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the "+" FAB is currently editing/creating. Carries the pre-filled date for new entries. */
 sealed interface ActiveSheet {
@@ -141,7 +144,7 @@ sealed interface ActiveSheet {
  * says what happened, not what was asked -- and a proposal outranks solo. `null` means no ring.
  *
  * One function rather than one rule per screen: the month grid and the year mosaic paint the same
- * days, so a day that reads "секс" in one and "соло" in the other would just be a bug waiting to
+ * days, so a day reading as intimacy in one and as solo in the other would just be a bug waiting to
  * be reported. The day's full contents are always there by tapping it (DayAgendaPanel).
  */
 internal fun markerKindFor(
@@ -221,7 +224,7 @@ private fun CalendarScreenContent(
     val appColors = appColors()
     val context = LocalContext.current
 
-    // Manual export/import (Settings' "Данные" section) -- a plain JSON file the user picks a
+    // Manual export/import (Settings' Data section) -- a plain JSON file the user picks a
     // destination/source for via the system document picker, independent of Android's own Auto
     // Backup: it's on-demand, portable to another device without the same Google account, and
     // readable/editable outside the app.
@@ -246,11 +249,11 @@ private fun CalendarScreenContent(
                 runCatching {
                     val json = snapshot.toExportJson()
                     val stream = context.contentResolver.openOutputStream(uri)
-                        ?: error("Не удалось открыть файл для записи")
+                        ?: error(context.getString(R.string.data_open_write_failed))
                     stream.use { it.write(json.toByteArray()) }
                 }
             }
-            val message = if (result.isSuccess) "Данные сохранены" else "Не удалось сохранить данные"
+            val message = context.getString(if (result.isSuccess) R.string.data_saved else R.string.data_save_failed)
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
@@ -261,7 +264,7 @@ private fun CalendarScreenContent(
                 runCatching {
                     val json = context.contentResolver.openInputStream(uri)
                         ?.use { it.readBytes().decodeToString() }
-                        ?: error("Не удалось открыть файл для чтения")
+                        ?: error(context.getString(R.string.data_open_read_failed))
                     parseDataSnapshot(json)
                 }
             }
@@ -271,9 +274,9 @@ private fun CalendarScreenContent(
                 snapshot.sexEntries.forEach(intimacyViewModel::saveSexEntry)
                 snapshot.proposalEntries.forEach(intimacyViewModel::saveProposalEntry)
                 snapshot.masturbationEntries.forEach(intimacyViewModel::saveMasturbationEntry)
-                Toast.makeText(context, "Данные загружены", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.data_loaded, Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.data_read_failed, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -331,9 +334,9 @@ private fun CalendarScreenContent(
         else -> Icons.Default.Add
     }
     val fabContentDescription = when {
-        hasPendingProposal -> "Ответить на предложение"
-        isPredictedPeriodStartDay -> "Добавить: прогнозируется начало месячных"
-        else -> "Добавить"
+        hasPendingProposal -> stringResource(R.string.calendar_answer_proposal)
+        isPredictedPeriodStartDay -> stringResource(R.string.calendar_add_period_predicted)
+        else -> stringResource(R.string.action_add)
     }
 
     // Already carries the cycle-phase blend when "adaptive theme" is on -- appColors() applies it
@@ -368,7 +371,7 @@ private fun CalendarScreenContent(
                             Icon(icon, contentDescription = fabContentDescription)
                         }
                     },
-                    text = { Text("Добавить") },
+                    text = { Text(stringResource(R.string.action_add)) },
                     containerColor = dynamicAccent,
                     contentColor = Color.White,
                     interactionSource = fabInteractionSource,
@@ -739,6 +742,7 @@ private fun CalendarMonthSection(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
+        val context = LocalContext.current
         var rangeSelectionMode by remember { mutableStateOf(false) }
         val baseMonth = remember { YearMonth.now() }
         val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
@@ -769,7 +773,7 @@ private fun CalendarMonthSection(
             val month = baseMonth.plusMonths((page - pagerCenterPage).toLong())
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 MonthNav(
-                    monthLabel = monthYearLabel(month.atDay(1)),
+                    monthLabel = context.monthYearLabel(month.atDay(1)),
                     rangeSelectionMode = rangeSelectionMode,
                     onToggleRangeSelectionMode = {
                         haptics.perform(HapticEvent.Toggle)
@@ -778,7 +782,7 @@ private fun CalendarMonthSection(
                 )
                 if (rangeSelectionMode) {
                     Text(
-                        "Проведите пальцем по дням месячных",
+                        stringResource(R.string.calendar_drag_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = appColors().textSecondary,
                         modifier = Modifier.padding(top = 2.dp)
@@ -874,9 +878,9 @@ private fun predictionAccuracyMessage(predicted: LocalDate?, actualStart: LocalD
     if (predicted == null || actualStart == null) return null
     val diffDays = ChronoUnit.DAYS.between(predicted, actualStart)
     return when {
-        diffDays == 0L -> "Прогноз оказался точным!"
-        diffDays > 0 -> "Начались на $diffDays дн. позже прогноза"
-        else -> "Начались на ${-diffDays} дн. раньше прогноза"
+        diffDays == 0L -> context.getString(R.string.prediction_exact)
+        diffDays > 0 -> context.resources.getQuantityString(R.plurals.prediction_late, diffDays.toInt(), diffDays.toInt())
+        else -> context.resources.getQuantityString(R.plurals.prediction_early, (-diffDays).toInt(), (-diffDays).toInt())
     }
 }
 
@@ -902,7 +906,7 @@ private fun EmptyCalendarState(onAddFirstPeriod: () -> Unit, modifier: Modifier 
         )
         Spacer(Modifier.height(20.dp))
         Text(
-            "Пока нет ни одной записи",
+            stringResource(R.string.empty_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = appColors.textPrimary,
@@ -910,8 +914,7 @@ private fun EmptyCalendarState(onAddFirstPeriod: () -> Unit, modifier: Modifier 
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Отметьте дату начала последних месячных — календарь сразу покажет фазы цикла и " +
-                "прогноз следующих",
+            stringResource(R.string.empty_body),
             style = MaterialTheme.typography.bodyMedium,
             color = appColors.textSecondary,
             textAlign = TextAlign.Center
@@ -924,7 +927,7 @@ private fun EmptyCalendarState(onAddFirstPeriod: () -> Unit, modifier: Modifier 
         ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Отметить начало месячных")
+            Text(stringResource(R.string.empty_action))
         }
     }
 }
@@ -958,14 +961,14 @@ private fun OnboardingHint(onDismiss: () -> Unit) {
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(
-                "Значки выше — история/тренды слева и настройки справа",
+                stringResource(R.string.onboarding_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = appColors.textPrimary,
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = { haptics.perform(HapticEvent.Tap); onDismiss() }) {
-                Text("Понятно", color = appColors.accent)
+                Text(stringResource(R.string.onboarding_got_it), color = appColors.accent)
             }
         }
     }
@@ -989,7 +992,7 @@ private fun CalendarHeader(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onOpenHistory) {
-                Icon(Icons.Default.History, contentDescription = "История и тренды", tint = appColors.textSecondary)
+                Icon(Icons.Default.History, contentDescription = stringResource(R.string.history_title), tint = appColors.textSecondary)
             }
             Text(
                 text = "INTERLUDE",
@@ -1001,23 +1004,23 @@ private fun CalendarHeader(
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onToday) {
-                Icon(Icons.Default.Today, contentDescription = "Сегодня", tint = appColors.textSecondary)
+                Icon(Icons.Default.Today, contentDescription = stringResource(R.string.calendar_today), tint = appColors.textSecondary)
             }
             IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = appColors.textSecondary)
+                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.calendar_settings), tint = appColors.textSecondary)
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = stats.currentCycleDay?.let { "Цикл, день $it" } ?: "Цикл",
+                text = stats.currentCycleDay?.let { stringResource(R.string.calendar_cycle_day, it) } ?: stringResource(R.string.calendar_cycle),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = appColors.textPrimary
             )
             if (todayPhase != null) {
                 Text(
-                    text = "  ${todayPhase.label}",
+                    text = "  " + stringResource(todayPhase.labelRes),
                     style = MaterialTheme.typography.titleMedium,
                     color = appColors.phaseColor(todayPhase),
                     modifier = Modifier.padding(bottom = 3.dp)
@@ -1027,15 +1030,15 @@ private fun CalendarHeader(
         Spacer(Modifier.height(4.dp))
         val subtitle = when {
             stats.predictedNextPeriodEarliest == null || stats.predictedNextPeriodLatest == null ->
-                "Добавьте дату месячных, чтобы увидеть прогноз"
+                stringResource(R.string.calendar_add_period_for_forecast)
             else -> {
                 val earliestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodEarliest)
                 val latestDays = ChronoUnit.DAYS.between(today, stats.predictedNextPeriodLatest)
                 when {
-                    latestDays < 0 -> "Месячные уже наступили"
-                    earliestDays <= 0 -> "Ожидаемый день месячных"
-                    earliestDays == latestDays -> "Следующие месячные через $earliestDays дн."
-                    else -> "Следующие месячные через $earliestDays–$latestDays дн."
+                    latestDays < 0 -> stringResource(R.string.calendar_period_due)
+                    earliestDays <= 0 -> stringResource(R.string.calendar_period_expected_today)
+                    earliestDays == latestDays -> stringResource(R.string.calendar_next_period_in, earliestDays)
+                    else -> stringResource(R.string.calendar_next_period_between, earliestDays, latestDays)
                 }
             }
         }
@@ -1047,7 +1050,7 @@ private fun CalendarHeader(
         if (stats.isIrregular) {
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Цикл нерегулярный — точность прогноза по календарю снижена",
+                text = stringResource(R.string.calendar_irregular),
                 style = MaterialTheme.typography.bodySmall,
                 color = appColors.warning
             )
@@ -1081,9 +1084,9 @@ private fun MonthNav(
             Icon(
                 Icons.Default.DateRange,
                 contentDescription = if (rangeSelectionMode) {
-                    "Выключить выбор диапазона месячных"
+                    stringResource(R.string.calendar_range_off)
                 } else {
-                    "Выбрать диапазон месячных протягиванием пальца"
+                    stringResource(R.string.calendar_range_on)
                 },
                 tint = if (rangeSelectionMode) appColors.accent else appColors.textSecondary
             )
@@ -1099,7 +1102,7 @@ private fun WeekdayHeader() {
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        WEEKDAY_SHORT_NAMES.forEach { day ->
+        weekdayShortNames().forEach { day ->
             Text(
                 text = day.uppercase(),
                 modifier = Modifier.weight(1f),
@@ -1112,7 +1115,7 @@ private fun WeekdayHeader() {
     }
 }
 
-private data class LegendEntry(val label: String, val color: Color, val tooltip: String)
+private data class LegendEntry(@StringRes val labelRes: Int, val color: Color, val tooltip: String)
 
 /** A 2-column grid of color dots + labels, each tappable to reveal a short explanation below it
  *  -- shared by [PhaseLegend] and [MarkerLegend] so both stay visually and behaviorally
@@ -1151,7 +1154,7 @@ private fun ExpandableLegend(entries: List<LegendEntry>, modifier: Modifier = Mo
                                 .background(entry.color)
                         )
                         Text(
-                            text = entry.label,
+                            text = stringResource(entry.labelRes),
                             style = MaterialTheme.typography.labelSmall,
                             color = appColors.textSecondary
                         )
@@ -1183,9 +1186,10 @@ private fun ExpandableLegend(entries: List<LegendEntry>, modifier: Modifier = Mo
 @Composable
 private fun PhaseLegend() {
     val appColors = appColors()
-    val entries = remember(appColors) {
+    val context = LocalContext.current
+    val entries = remember(appColors, context) {
         CyclePhase.entries.map { phase ->
-            LegendEntry(phase.label, appColors.phaseColor(phase), phaseTipForMen(phase))
+            LegendEntry(phase.labelRes, appColors.phaseColor(phase), context.phaseTipForMen(phase))
         }
     }
     ExpandableLegend(entries, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
@@ -1200,30 +1204,29 @@ private fun MarkerLegend() {
     val entries = remember(markerColors) {
         listOf(
             LegendEntry(
-                MarkerKind.SEX.label,
+                MarkerKind.SEX.labelRes,
                 markerColors.sex,
-                "Отмеченная близость в этот день."
+                stringResource(R.string.legend_sex_tip)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_ACCEPTED.label,
+                MarkerKind.PROPOSAL_ACCEPTED.labelRes,
                 markerColors.proposalAccepted,
-                "Предложение близости было сделано и принято."
+                stringResource(R.string.legend_accepted_tip)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_DECLINED.label,
+                MarkerKind.PROPOSAL_DECLINED.labelRes,
                 markerColors.proposalDeclined,
-                "Предложение близости было сделано, но отклонено."
+                stringResource(R.string.legend_declined_tip)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_PENDING.label,
+                MarkerKind.PROPOSAL_PENDING.labelRes,
                 markerColors.proposalPending,
-                "Предложение сделано, но ответ ещё не отмечен."
+                stringResource(R.string.legend_pending_tip)
             ),
             LegendEntry(
-                MarkerKind.SOLO.label,
+                MarkerKind.SOLO.labelRes,
                 markerColors.solo,
-                "Отмечена мастурбация в этот день. Если в тот же день была и близость, кольцо " +
-                    "показывает её — весь состав дня виден при нажатии на дату."
+                stringResource(R.string.legend_solo_tip)
             )
         )
     }
@@ -1254,13 +1257,13 @@ private fun SuggestionBanner(suggestion: ProactiveSuggestion, onDismiss: () -> U
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                suggestion.title,
+                stringResource(R.string.suggestion_title),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = appColors.textPrimary
             )
             Text(
-                suggestion.message,
+                stringResource(suggestion.reason.textRes, stringResource(suggestion.idea.textRes)),
                 style = MaterialTheme.typography.bodySmall,
                 color = appColors.textSecondary
             )
@@ -1268,7 +1271,7 @@ private fun SuggestionBanner(suggestion: ProactiveSuggestion, onDismiss: () -> U
         IconButton(onClick = onDismiss, modifier = Modifier.size(20.dp)) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = "Скрыть подсказку",
+                contentDescription = stringResource(R.string.calendar_hide_hint),
                 tint = appColors.textSecondary,
                 modifier = Modifier.size(16.dp)
             )
@@ -1450,8 +1453,8 @@ private fun MonthGrid(
     }
 }
 
-/** A dashed stadium (fully-rounded-pill) outline, no fill -- the "Пунктир" phase display style,
- *  in place of the "Заливка" style's solid [Modifier.background]. Dashed-style cells are never
+/** A dashed stadium (fully-rounded-pill) outline, no fill -- the dashed phase display style,
+ *  in place of the filled style's solid [Modifier.background]. Dashed-style cells are never
  *  merged into a run (see MonthGrid), so the cell is always a full stadium shape -- a plain
  *  [androidx.compose.ui.graphics.drawscope.DrawScope.drawRoundRect] with a half-height corner
  *  radius covers it without needing to trace an arbitrary [androidx.compose.ui.graphics.Shape]'s
@@ -1750,7 +1753,7 @@ private fun DayCell(
                     ) {
                         Icon(
                             Icons.Filled.Star,
-                            contentDescription = "Оргазм",
+                            contentDescription = stringResource(R.string.calendar_orgasm),
                             tint = appColors.orgasmStar,
                             modifier = Modifier.size(10.dp)
                         )

@@ -20,12 +20,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -43,21 +43,23 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.koshg.interlude.R
 import com.koshg.interlude.backup.BackupStatus
-import com.koshg.interlude.security.AppLockPreferences
-import com.koshg.interlude.settings.PhaseFillStyle
 import com.koshg.interlude.haptics.HapticEvent
 import com.koshg.interlude.haptics.LocalHaptics
+import com.koshg.interlude.security.AppLockPreferences
+import com.koshg.interlude.settings.PhaseFillStyle
 import com.koshg.interlude.ui.theme.LocalThemeMode
 import com.koshg.interlude.ui.theme.MarkerKind
 import com.koshg.interlude.ui.theme.MarkerPreset
 import com.koshg.interlude.ui.theme.MarkerPresets
-import com.koshg.interlude.ui.theme.presetFor
 import com.koshg.interlude.ui.theme.Palette
 import com.koshg.interlude.ui.theme.ThemeMode
 import com.koshg.interlude.ui.theme.appColors
+import com.koshg.interlude.ui.theme.presetFor
 import com.koshg.interlude.ui.theme.previewAccent
 import com.koshg.interlude.ui.theme.resolveDark
 import com.koshg.interlude.util.DEFAULT_LUTEAL_PHASE_DAYS
@@ -112,10 +114,10 @@ fun SettingsScreen(
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = appColors.textPrimary)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = appColors.textPrimary)
                 }
                 Text(
-                    text = "Настройки",
+                    text = stringResource(R.string.settings_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = appColors.textPrimary,
@@ -176,16 +178,16 @@ private fun SecuritySection() {
     val prefs = remember { AppLockPreferences(context) }
     var enabled by remember { mutableStateOf(prefs.isEnabled) }
 
-    SectionCard(title = "Безопасность") {
+    SectionCard(title = stringResource(R.string.settings_section_security)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Блокировка приложения",
+                    stringResource(R.string.settings_app_lock),
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
                 )
                 Text(
-                    "Биометрия или PIN/пароль устройства при запуске",
+                    stringResource(R.string.settings_app_lock_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary
                 )
@@ -218,7 +220,7 @@ private fun MarkerColorSection(
     val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
     var expanded by remember { mutableStateOf(false) }
 
-    SectionCard(title = "Цвета отметок") {
+    SectionCard(title = stringResource(R.string.settings_section_marker_colors)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -229,7 +231,7 @@ private fun MarkerColorSection(
                 }
         ) {
             Text(
-                "Цвет кольца вокруг даты",
+                stringResource(R.string.settings_marker_colors_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = appColors.textSecondary,
                 modifier = Modifier.weight(1f)
@@ -248,7 +250,7 @@ private fun MarkerColorSection(
             }
             Icon(
                 Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                contentDescription = if (expanded) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                 tint = appColors.textSecondary,
                 modifier = Modifier
                     .padding(start = 8.dp)
@@ -267,7 +269,7 @@ private fun MarkerColorSection(
                 MarkerKind.entries.forEach { kind ->
                     val selected = markerPresets.presetFor(kind)
                     Text(
-                        kind.label,
+                        stringResource(kind.labelRes),
                         style = MaterialTheme.typography.bodyMedium,
                         color = appColors.textPrimary
                     )
@@ -305,7 +307,7 @@ private fun MarkerColorSection(
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.textPrimary)
                 ) {
-                    Text("Сбросить по умолчанию")
+                    Text(stringResource(R.string.settings_reset_defaults))
                 }
             }
         }
@@ -321,23 +323,23 @@ private fun LegendSection(
     onShowMarkerLegendChange: (Boolean) -> Unit
 ) {
     val appColors = appColors()
-    SectionCard(title = "Легенды") {
+    SectionCard(title = stringResource(R.string.settings_section_legends)) {
         LegendToggleRow(
-            label = "Легенда фаз",
-            description = "Цвета фаз цикла под календарём",
+            label = stringResource(R.string.settings_phase_legend),
+            description = stringResource(R.string.settings_phase_legend_hint),
             checked = legendVisibility.phases,
             onCheckedChange = onShowPhaseLegendChange
         )
         Spacer(Modifier.height(10.dp))
         LegendToggleRow(
-            label = "Легенда отметок",
-            description = "Цвета колец: секс, предложения, соло",
+            label = stringResource(R.string.settings_marker_legend),
+            description = stringResource(R.string.settings_marker_legend_hint),
             checked = legendVisibility.markers,
             onCheckedChange = onShowMarkerLegendChange
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Обе легенды раскрывают пояснение по нажатию на строку",
+            stringResource(R.string.settings_legends_note),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
@@ -372,9 +374,9 @@ private fun LegendToggleRow(
 private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit) {
     val appColors = appColors()
     val dark = LocalThemeMode.current.resolveDark(isSystemInDarkTheme())
-    SectionCard(title = "Цветовая схема") {
+    SectionCard(title = stringResource(R.string.settings_section_color_scheme)) {
         Text(
-            "Акцент кнопок и фон календаря — цвета фаз не меняются",
+            stringResource(R.string.settings_color_scheme_hint),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
@@ -408,7 +410,7 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        p.label,
+                        stringResource(p.labelRes),
                         style = MaterialTheme.typography.labelSmall,
                         color = appColors.textSecondary
                     )
@@ -446,7 +448,7 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Text("Предпросмотр", style = MaterialTheme.typography.labelSmall, color = appColors.textSecondary)
+                Text(stringResource(R.string.settings_preview), style = MaterialTheme.typography.labelSmall, color = appColors.textSecondary)
             }
             Row(
                 modifier = Modifier
@@ -458,7 +460,7 @@ private fun PaletteSection(palette: Palette, onPaletteChange: (Palette) -> Unit)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Text(
-                    "Добавить",
+                    stringResource(R.string.action_add),
                     color = Color.White,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
@@ -479,10 +481,10 @@ private fun AppearanceSection(
     onThemeModeChange: (ThemeMode) -> Unit
 ) {
     val appColors = appColors()
-    SectionCard(title = "Оформление") {
+    SectionCard(title = stringResource(R.string.settings_section_appearance)) {
         Column {
             Text(
-                "Тема",
+                stringResource(R.string.settings_theme),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textPrimary
             )
@@ -503,14 +505,14 @@ private fun AppearanceSection(
                             inactiveBorderColor = appColors.textSecondary.copy(alpha = 0.35f)
                         )
                     ) {
-                        Text(mode.label, color = if (isSelected) Color.White else appColors.textPrimary)
+                        Text(stringResource(mode.labelRes), color = if (isSelected) Color.White else appColors.textPrimary)
                     }
                 }
             }
         }
         Column {
             Text(
-                "Отображение фаз",
+                stringResource(R.string.settings_phase_display),
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textPrimary
             )
@@ -532,7 +534,7 @@ private fun AppearanceSection(
                         )
                     ) {
                         Text(
-                            if (style == PhaseFillStyle.FILLED) "Заливка" else "Пунктир",
+                            if (style == PhaseFillStyle.FILLED) stringResource(R.string.settings_fill) else stringResource(R.string.settings_dashed),
                             color = if (isSelected) Color.White else appColors.textPrimary
                         )
                     }
@@ -542,12 +544,12 @@ private fun AppearanceSection(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Адаптивная тема",
+                    stringResource(R.string.settings_adaptive_theme),
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
                 )
                 Text(
-                    "Акцент кнопки добавления и выбранной даты плавно меняется по фазе цикла",
+                    stringResource(R.string.settings_adaptive_theme_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary
                 )
@@ -560,16 +562,16 @@ private fun AppearanceSection(
 @Composable
 private fun SuggestionsSection(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
     val appColors = appColors()
-    SectionCard(title = "Подсказки") {
+    SectionCard(title = stringResource(R.string.settings_section_hints)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Идеи для вечера",
+                    stringResource(R.string.settings_suggestions),
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
                 )
                 Text(
-                    "Ненавязчивая подсказка на календаре при долгом перерыве или частой усталости в отказах",
+                    stringResource(R.string.settings_suggestions_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary
                 )
@@ -582,17 +584,16 @@ private fun SuggestionsSection(enabled: Boolean, onEnabledChange: (Boolean) -> U
 @Composable
 private fun RemindersSection(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
     val appColors = appColors()
-    SectionCard(title = "Уведомления") {
+    SectionCard(title = stringResource(R.string.settings_section_notifications)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Напоминания цикла",
+                    stringResource(R.string.settings_reminders),
                     style = MaterialTheme.typography.bodyMedium,
                     color = appColors.textPrimary
                 )
                 Text(
-                    "За 2 дня до ожидаемых месячных и в примерный день овуляции, по тому же прогнозу, " +
-                        "что и в календаре. Полностью локально, без сервера.",
+                    stringResource(R.string.settings_reminders_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.textSecondary
                 )
@@ -605,10 +606,9 @@ private fun RemindersSection(enabled: Boolean, onEnabledChange: (Boolean) -> Uni
 @Composable
 private fun DataSection(onExport: () -> Unit, onImport: () -> Unit) {
     val appColors = appColors()
-    SectionCard(title = "Данные") {
+    SectionCard(title = stringResource(R.string.settings_section_data)) {
         Text(
-            "Экспорт/импорт в файл — отдельно от системного бэкапа. Можно сохранить куда угодно, " +
-                "включая Google Drive, и перенести на другое устройство.",
+            stringResource(R.string.settings_data_hint),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
@@ -618,12 +618,12 @@ private fun DataSection(onExport: () -> Unit, onImport: () -> Unit) {
                 onClick = onExport,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.accent)
-            ) { Text("Экспорт") }
+            ) { Text(stringResource(R.string.settings_export)) }
             OutlinedButton(
                 onClick = onImport,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.accent)
-            ) { Text("Импорт") }
+            ) { Text(stringResource(R.string.settings_import)) }
         }
         Spacer(Modifier.height(14.dp))
         AutoBackupStatusRow()
@@ -648,29 +648,27 @@ private fun AutoBackupStatusRow() {
         .format(formatter)
 
     Text(
-        "Системный бэкап Google",
+        stringResource(R.string.settings_system_backup),
         style = MaterialTheme.typography.bodyMedium,
         color = appColors.textPrimary
     )
     Spacer(Modifier.height(4.dp))
     Text(
-        text = lastBackup?.let { "Последний бэкап: ${format(it)}" }
-            ?: "Бэкап пока не выполнялся на этом устройстве",
+        text = lastBackup?.let { stringResource(R.string.settings_last_backup, format(it)) }
+            ?: stringResource(R.string.settings_no_backup_yet),
         style = MaterialTheme.typography.bodySmall,
         color = appColors.textSecondary
     )
     if (lastRestore != null) {
         Text(
-            "Данные восстановлены из бэкапа: ${format(lastRestore)}",
+            stringResource(R.string.settings_restored_from_backup, format(lastRestore)),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
     }
     Spacer(Modifier.height(4.dp))
     Text(
-        "Android запускает его сам, примерно раз в сутки и только когда телефон заряжается, " +
-            "не используется и подключён к Wi-Fi. Восстановление происходит только при установке " +
-            "приложения на новое устройство, не при обновлении.",
+        stringResource(R.string.settings_backup_conditions),
         style = MaterialTheme.typography.bodySmall,
         color = appColors.textSecondary
     )
@@ -679,13 +677,12 @@ private fun AutoBackupStatusRow() {
 @Composable
 private fun CycleModelSection(lutealPhaseDays: Int, onLutealPhaseDaysChange: (Int) -> Unit) {
     val appColors = appColors()
-    SectionCard(title = "Модель цикла") {
-        CountStepper("Длина лютеиновой фазы (дн.)", lutealPhaseDays) { newValue ->
+    SectionCard(title = stringResource(R.string.settings_section_cycle_model)) {
+        CountStepper(stringResource(R.string.settings_luteal_length), lutealPhaseDays) { newValue ->
             onLutealPhaseDaysChange(newValue.coerceIn(LUTEAL_PHASE_DAYS_RANGE))
         }
         Text(
-            "От овуляции до начала следующих месячных. По умолчанию $DEFAULT_LUTEAL_PHASE_DAYS дн. — " +
-                "измените, только если знаете свою норму по факту.",
+            stringResource(R.string.settings_luteal_hint, DEFAULT_LUTEAL_PHASE_DAYS),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
@@ -702,20 +699,18 @@ private fun AboutSection() {
         }.getOrNull() ?: "—"
     }
 
-    SectionCard(title = "О приложении") {
+    SectionCard(title = stringResource(R.string.settings_section_about)) {
         Text("Interlude", style = MaterialTheme.typography.bodyMedium, color = appColors.textPrimary)
-        Text("Версия $versionName", style = MaterialTheme.typography.bodySmall, color = appColors.textSecondary)
+        Text(stringResource(R.string.settings_version, versionName), style = MaterialTheme.typography.bodySmall, color = appColors.textSecondary)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Все данные (циклы, близость, события) хранятся только на этом устройстве и никуда не отправляются.",
+            stringResource(R.string.settings_about_local),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Если в системе включено резервное копирование Android, данные могут сохраняться в " +
-                "Google-аккаунт устройства — это делает сама ОС, без участия приложения; отключается " +
-                "в системных настройках телефона.",
+            stringResource(R.string.settings_about_backup),
             style = MaterialTheme.typography.bodySmall,
             color = appColors.textSecondary
         )

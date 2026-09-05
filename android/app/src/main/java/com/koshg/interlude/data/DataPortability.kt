@@ -138,7 +138,7 @@ fun parseDataSnapshot(json: String): DataSnapshot {
                 initiator = obj.getString("initiator"),
                 accepted = obj.optBoolean("accepted", true),
                 answered = obj.optBoolean("answered", true),
-                declineReason = obj.optString("declineReason", ""),
+                declineReason = normalizeDeclineReason(obj.optString("declineReason", "")),
                 notes = obj.optString("notes", "")
             )
         }.getOrNull()
@@ -157,4 +157,14 @@ fun parseDataSnapshot(json: String): DataSnapshot {
     }
 
     return DataSnapshot(periods, events, sexEntries, proposalEntries, masturbationEntries)
+}
+
+/** Maps the Russian chip labels an export before version 2 stored into the [DeclineReason] codes
+ *  used since, so a fatigue pattern survives a restore from an old file. Anything else was typed
+ *  by the user and is kept exactly as written. */
+private fun normalizeDeclineReason(stored: String): String = when (stored) {
+    "Усталость" -> DeclineReason.FATIGUE.storageValue
+    "Настроение" -> DeclineReason.MOOD.storageValue
+    "Самочувствие" -> DeclineReason.WELLBEING.storageValue
+    else -> stored
 }

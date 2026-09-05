@@ -1,5 +1,7 @@
 package com.koshg.interlude.ui.theme
 
+import androidx.annotation.StringRes
+import com.koshg.interlude.R
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -9,12 +11,12 @@ import androidx.compose.ui.graphics.Color
  * which carry fixed medical meaning -- these are the user's own logged activity, and their colors
  * are user-overridable in Settings (see [MarkerPresets]).
  */
-enum class MarkerKind(val label: String) {
-    SEX("Секс"),
-    PROPOSAL_ACCEPTED("Предложение принято"),
-    PROPOSAL_DECLINED("Предложение отклонено"),
-    PROPOSAL_PENDING("Предложение ожидает"),
-    SOLO("Соло")
+enum class MarkerKind(@StringRes val labelRes: Int) {
+    SEX(R.string.marker_sex),
+    PROPOSAL_ACCEPTED(R.string.marker_proposal_accepted),
+    PROPOSAL_DECLINED(R.string.marker_proposal_declined),
+    PROPOSAL_PENDING(R.string.marker_proposal_pending),
+    SOLO(R.string.marker_solo)
 }
 
 /**

@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProposalEntry::class,
         MasturbationEntry::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -97,6 +97,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // declineReason used to hold the Russian chip label itself. Now it holds a stable
+                // code (see DeclineReason), so that a fatigue pattern is still recognised after
+                // the user switches language. Map the three labels that were ever offered as
+                // chips; anything else was typed by hand and stays as the free text it is.
+                db.execSQL(
+                    "UPDATE `proposal_entries` SET `declineReason` = 'fatigue' " +
+                        "WHERE `declineReason` = 'Усталость'"
+                )
+                db.execSQL(
+                    "UPDATE `proposal_entries` SET `declineReason` = 'mood' " +
+                        "WHERE `declineReason` = 'Настроение'"
+                )
+                db.execSQL(
+                    "UPDATE `proposal_entries` SET `declineReason` = 'wellbeing' " +
+                        "WHERE `declineReason` = 'Самочувствие'"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -104,7 +125,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "calendar.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6
+                    )
                     // TRUNCATE (not the default WAL) so every commit lands fully in calendar.db
                     // itself, with no separate -wal/-shm sidecar file Android's Auto Backup
                     // (a plain file copy, no SQLite awareness) could snapshot mid-write.
