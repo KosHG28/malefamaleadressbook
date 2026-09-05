@@ -11,6 +11,8 @@
     <string name="phase_follicular">Фолликулярная</string>
     <string name="phase_ovulatory">Фертильное окно</string>
     <string name="phase_luteal">Лютеиновая</string>
+    <string name="phase_ovulation_day">День овуляции</string>
+    <string name="legend_ovulation_day_tip">Один расчётный день выхода яйцеклетки — самая светлая ячейка в полосе, со свечением вокруг. Считается как начало следующих месячных минус длина лютеиновой фазы (по умолчанию 14 дн., меняется в настройках). Вероятность зачатия наибольшая в этот день и за один-два дня до него.</string>
 
     <!-- Кто -->
     <string name="initiator_me">Я</string>

@@ -14,6 +14,8 @@
     <string name="phase_follicular">Follicular</string>
     <string name="phase_ovulatory">Fertile window</string>
     <string name="phase_luteal">Luteal</string>
+    <string name="phase_ovulation_day">Ovulation day</string>
+    <string name="legend_ovulation_day_tip">The single day the egg is predicted to be released — the brightest cell in the band, with a soft glow around it. Calculated as the next period minus the luteal phase length (14 days by default, adjustable in Settings). The chance of conception peaks on this day and the one or two before it.</string>
 
     <!-- Who -->
     <string name="initiator_me">Me</string>
