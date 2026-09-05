@@ -99,7 +99,7 @@
 
 ```
 android/
-  app/src/main/java/com/koshg/calendar/
+  app/src/main/java/com/koshg/interlude/
     MainActivity.kt          — точка входа: заставка, блокировка приложения, репозитории/ViewModel
     data/                    — Room: Entity/Dao/Database/Repository
                                 (события, месячные, секс, предложения, мастурбация)
