@@ -1,6 +1,7 @@
 package com.koshg.interlude.ui
 
 import android.Manifest
+import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -601,7 +602,11 @@ private fun CalendarScreenContent(
                 // typo in a months-old entry isn't "you just started your period", so it
                 // shouldn't be met with a verdict on the forecast.
                 if (sheet.entry == null) {
-                    predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                    predictionAccuracyMessage(
+                    context,
+                    cycleState.stats.predictedNextPeriod,
+                    entry.startDate.toLocalDateOrNull()
+                )
                         ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                 }
                 cycleViewModel.savePeriod(entry)
@@ -623,7 +628,11 @@ private fun CalendarScreenContent(
             onDismiss = { activeSheet = null },
             onSave = { entry ->
                 haptics.perform(HapticEvent.LogEntry)
-                predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                predictionAccuracyMessage(
+                    context,
+                    cycleState.stats.predictedNextPeriod,
+                    entry.startDate.toLocalDateOrNull()
+                )
                     ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                 cycleViewModel.savePeriod(entry)
                 activeSheet = null
@@ -692,7 +701,11 @@ private fun CalendarScreenContent(
             onDismiss = { activeSheet = null },
             onSavePeriod = { entry ->
                 haptics.perform(HapticEvent.LogEntry)
-                predictionAccuracyMessage(cycleState.stats.predictedNextPeriod, entry.startDate.toLocalDateOrNull())
+                predictionAccuracyMessage(
+                    context,
+                    cycleState.stats.predictedNextPeriod,
+                    entry.startDate.toLocalDateOrNull()
+                )
                     ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                 cycleViewModel.savePeriod(entry)
                 activeSheet = null
@@ -874,7 +887,11 @@ private fun CalendarMonthSection(
  *  comparing what the app predicted (captured *before* this save) against what actually
  *  happened builds trust in the predictions the rest of the app leans on. Null with no prior
  *  prediction to grade (no cycle history yet) or an unparseable date. */
-private fun predictionAccuracyMessage(predicted: LocalDate?, actualStart: LocalDate?): String? {
+private fun predictionAccuracyMessage(
+    context: Context,
+    predicted: LocalDate?,
+    actualStart: LocalDate?
+): String? {
     if (predicted == null || actualStart == null) return null
     val diffDays = ChronoUnit.DAYS.between(predicted, actualStart)
     return when {
@@ -1201,7 +1218,9 @@ private fun PhaseLegend() {
 @Composable
 private fun MarkerLegend() {
     val markerColors = LocalMarkerColors.current
-    val entries = remember(markerColors) {
+    // Built straight rather than inside remember: stringResource is itself a composable read, so
+    // it cannot run in remember's lambda, and the list is five entries -- not worth caching.
+    val entries =
         listOf(
             LegendEntry(
                 MarkerKind.SEX.labelRes,
@@ -1229,7 +1248,6 @@ private fun MarkerLegend() {
                 stringResource(R.string.legend_solo_tip)
             )
         )
-    }
     ExpandableLegend(entries, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
 }
 

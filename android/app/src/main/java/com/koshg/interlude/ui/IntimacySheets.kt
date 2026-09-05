@@ -469,7 +469,7 @@ private fun DateField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
     ) {
         Icon(Icons.Default.DateRange, contentDescription = null, tint = appColors.accent, modifier = Modifier.size(20.dp))
         Text(
-            fullDateLabel(date),
+            LocalContext.current.fullDateLabel(date),
             style = MaterialTheme.typography.bodyLarge,
             color = appColors.textPrimary,
             modifier = Modifier.weight(1f)
