@@ -290,7 +290,10 @@ private fun CalendarScreenContent(
     // Only sex entries get the star -- masturbation's own orgasm count is already visible via its
     // marker ring and the day-agenda row, and doesn't need the same calendar-wide star treatment.
     val orgasmDates = remember(intimacyState.sexEntries) {
-        intimacyState.sexEntries.filter { it.orgasmCount > 0 }.map { it.date }.toSet()
+        intimacyState.sexEntries
+            .filter { it.myOrgasmCount + it.partnerOrgasmCount > 0 }
+            .map { it.date }
+            .toSet()
     }
 
     // The FAB guesses intent from the selected day rather than always showing a plain "+":

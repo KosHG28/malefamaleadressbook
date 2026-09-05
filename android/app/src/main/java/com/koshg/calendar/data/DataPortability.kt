@@ -3,7 +3,10 @@ package com.koshg.calendar.data
 import org.json.JSONArray
 import org.json.JSONObject
 
-private const val EXPORT_VERSION = 1
+/** 2 since sex entries carry an orgasm count per person rather than one total. Nothing reads this
+ *  on import -- [parseDataSnapshot] handles both shapes by key -- it only stamps what wrote the
+ *  file. */
+private const val EXPORT_VERSION = 2
 
 /** A full snapshot of the app's own logged data -- not settings -- for manual export/import via
  *  a plain JSON file, independent of (and a supplement to) Android's own Auto Backup. */
@@ -47,7 +50,8 @@ fun DataSnapshot.toExportJson(): String {
             .put("id", entry.id)
             .put("date", entry.date)
             .put("initiator", entry.initiator)
-            .put("orgasmCount", entry.orgasmCount)
+            .put("myOrgasmCount", entry.myOrgasmCount)
+            .put("partnerOrgasmCount", entry.partnerOrgasmCount)
             .put("notes", entry.notes)
     }))
 
@@ -117,7 +121,10 @@ fun parseDataSnapshot(json: String): DataSnapshot {
                 id = obj.getString("id"),
                 date = obj.getString("date"),
                 initiator = obj.getString("initiator"),
-                orgasmCount = obj.optInt("orgasmCount", 0),
+                // A file written before orgasms were counted per person carries one total under
+                // the old key; read it as this person's own, matching MIGRATION_4_5.
+                myOrgasmCount = obj.optInt("myOrgasmCount", obj.optInt("orgasmCount", 0)),
+                partnerOrgasmCount = obj.optInt("partnerOrgasmCount", 0),
                 notes = obj.optString("notes", "")
             )
         }.getOrNull()

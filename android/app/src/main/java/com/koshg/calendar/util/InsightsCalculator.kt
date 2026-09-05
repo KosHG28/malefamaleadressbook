@@ -29,6 +29,65 @@ private data class PhaseTally(
     val totalProposals get() = accepted + declined
 }
 
+/**
+ * How the app counts proposal outcomes, which is not simply "what the proposal rows say".
+ *
+ * A logged sex entry is itself an acceptance: something was proposed, in whatever form, and it
+ * went ahead. So a day with sex counts as an accepted proposal even when no proposal was ever
+ * written down -- most encounters never get one, and without this the acceptance rate only ever
+ * measures the occasions someone bothered to log a proposal, which skews it toward the refusals
+ * (those are the ones people remember to record).
+ *
+ * Two rules keep that from double-counting or overriding the user:
+ *  - A proposal and a sex entry on the same day count once between them, not twice.
+ *  - An explicit "отклонено" stays declined. The outcome the user typed outranks one inferred
+ *    from another entry, even a contradictory one. Only a proposal still awaiting an answer is
+ *    resolved by same-day sex.
+ */
+data class ProposalOutcomes(
+    val accepted: Int,
+    val declined: Int,
+    val pending: Int,
+    /** Of [accepted], how many came from a sex entry rather than a proposal the user answered --
+     *  lets the UI explain a number that would otherwise look wrong against the logged rows. */
+    val fromSex: Int
+) {
+    val answered get() = accepted + declined
+}
+
+fun computeProposalOutcomes(
+    proposalEntries: List<ProposalEntry>,
+    sexEntries: List<SexEntry>
+): ProposalOutcomes {
+    val sexDates = sexEntries.mapTo(HashSet()) { it.date }
+    val proposalDates = proposalEntries.mapTo(HashSet()) { it.date }
+
+    var accepted = 0
+    var declined = 0
+    var pending = 0
+    var fromSex = 0
+    proposalEntries.forEach { entry ->
+        when {
+            entry.answered && entry.accepted -> accepted++
+            entry.answered -> declined++
+            entry.date in sexDates -> {
+                accepted++
+                fromSex++
+            }
+            else -> pending++
+        }
+    }
+    // Days where it went ahead with no proposal row at all. Counted by date, so two entries on
+    // one day are still one outcome.
+    val undocumented = (sexDates - proposalDates).size
+    return ProposalOutcomes(
+        accepted = accepted + undocumented,
+        declined = declined,
+        pending = pending,
+        fromSex = fromSex + undocumented
+    )
+}
+
 /** One correlation finding, tagged with the phase it's about so the UI can prefix it with that
  *  phase's legend color for a quick visual anchor. */
 data class CorrelationInsight(val phase: CyclePhase, val sentence: String)
@@ -56,6 +115,8 @@ fun computeCorrelationInsights(
         dateStr.toLocalDateOrNull()?.let { cyclePhaseFor(it, periods, marginDays, lutealPhaseDays) }
 
     val tallies = CyclePhase.entries.associateWith { PhaseTally() }
+    val sexDates = sexEntries.mapTo(HashSet()) { it.date }
+    val proposalDates = proposalEntries.mapTo(HashSet()) { it.date }
 
     sexEntries.forEach { entry ->
         val tally = phaseOf(entry.date)?.let { tallies[it] } ?: return@forEach
@@ -71,15 +132,25 @@ fun computeCorrelationInsights(
             Initiator.ME -> tally.meInitiated++
             Initiator.PARTNER -> tally.partnerInitiated++
         }
-        // An unanswered proposal still counts toward who initiates -- it just has no
-        // accepted/declined outcome yet, so it can't feed the acceptance-rate tallies below.
-        if (!entry.answered) return@forEach
+        // An unanswered proposal still counts toward who initiates. It has no accepted/declined
+        // outcome of its own yet -- unless sex was logged that day, which is the answer.
+        if (!entry.answered) {
+            if (entry.date in sexDates) tally.accepted++
+            return@forEach
+        }
         if (entry.accepted) {
             tally.accepted++
         } else {
             tally.declined++
             if (entry.declineReason.contains("устал", ignoreCase = true)) tally.fatigueDeclines++
         }
+    }
+
+    // Sex on a day with no proposal row is an accepted proposal here too, or this screen's
+    // per-phase rates would contradict the Proposals card -- see [computeProposalOutcomes].
+    (sexDates - proposalDates).forEach { date ->
+        val tally = phaseOf(date)?.let { tallies[it] } ?: return@forEach
+        tally.accepted++
     }
 
     val insights = mutableListOf<CorrelationInsight>()

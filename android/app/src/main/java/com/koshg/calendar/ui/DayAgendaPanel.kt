@@ -233,7 +233,9 @@ private fun SexRow(entry: SexEntry, onClick: () -> Unit) {
     val colors = LocalMarkerColors.current
     val parts = buildList {
         add("Инициатор: ${Initiator.fromStorage(entry.initiator).label}")
-        if (entry.orgasmCount > 0) add("Оргазмов: ${entry.orgasmCount}")
+        // Named per person rather than summed: whose they were is the point of counting them.
+        if (entry.myOrgasmCount > 0) add("Мои оргазмы: ${entry.myOrgasmCount}")
+        if (entry.partnerOrgasmCount > 0) add("Оргазмы партнёра: ${entry.partnerOrgasmCount}")
         if (entry.notes.isNotBlank()) add(entry.notes)
     }
     AgendaRow(

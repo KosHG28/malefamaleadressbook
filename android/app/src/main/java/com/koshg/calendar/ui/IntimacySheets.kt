@@ -265,6 +265,10 @@ fun UnifiedAddSheet(
     var notes by remember { mutableStateOf("") }
 
     var initiator by remember { mutableStateOf(Initiator.ME) }
+    // Sex keeps a count per person; masturbation needs only one, since its own person selector
+    // already says whose it is.
+    var myOrgasmCount by remember { mutableStateOf(0) }
+    var partnerOrgasmCount by remember { mutableStateOf(0) }
     var orgasmCount by remember { mutableStateOf(0) }
     var proposalAnswer by remember { mutableStateOf(ProposalAnswer.ACCEPTED) }
     var declineReason by remember { mutableStateOf("") }
@@ -340,7 +344,8 @@ fun UnifiedAddSheet(
 
                     AddType.Sex -> {
                         InitiatorSelector(initiator) { initiator = it }
-                        CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
+                        CountStepper("Мои оргазмы", myOrgasmCount) { myOrgasmCount = it }
+                        CountStepper("Оргазмы партнёра", partnerOrgasmCount) { partnerOrgasmCount = it }
                     }
 
                     AddType.Proposal -> {
@@ -387,7 +392,8 @@ fun UnifiedAddSheet(
                                     id = newEventId(),
                                     date = date.toString(),
                                     initiator = initiator.storageValue,
-                                    orgasmCount = orgasmCount,
+                                    myOrgasmCount = myOrgasmCount,
+                                    partnerOrgasmCount = partnerOrgasmCount,
                                     notes = notes.trim()
                                 )
                             )
@@ -681,7 +687,8 @@ fun SexSheet(
     val appColors = appColors()
     var date by remember { mutableStateOf(entry?.date?.toLocalDateOrNull() ?: initialDate) }
     var initiator by remember { mutableStateOf(entry?.initiator?.let(Initiator::fromStorage) ?: Initiator.ME) }
-    var orgasmCount by remember { mutableStateOf(entry?.orgasmCount ?: 0) }
+    var myOrgasmCount by remember { mutableStateOf(entry?.myOrgasmCount ?: 0) }
+    var partnerOrgasmCount by remember { mutableStateOf(entry?.partnerOrgasmCount ?: 0) }
     var notes by remember { mutableStateOf(entry?.notes ?: "") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = appColors.warmSurface) {
@@ -699,7 +706,8 @@ fun SexSheet(
             )
             DateField(date) { date = it }
             InitiatorSelector(initiator) { initiator = it }
-            CountStepper("Количество оргазмов", orgasmCount) { orgasmCount = it }
+            CountStepper("Мои оргазмы", myOrgasmCount) { myOrgasmCount = it }
+            CountStepper("Оргазмы партнёра", partnerOrgasmCount) { partnerOrgasmCount = it }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
@@ -719,7 +727,8 @@ fun SexSheet(
                             id = entry?.id ?: newEventId(),
                             date = date.toString(),
                             initiator = initiator.storageValue,
-                            orgasmCount = orgasmCount,
+                            myOrgasmCount = myOrgasmCount,
+                            partnerOrgasmCount = partnerOrgasmCount,
                             notes = notes.trim()
                         )
                     )

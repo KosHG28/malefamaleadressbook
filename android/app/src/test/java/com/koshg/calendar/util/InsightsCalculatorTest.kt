@@ -4,6 +4,7 @@ import com.koshg.calendar.data.Initiator
 import com.koshg.calendar.data.PeriodEntry
 import com.koshg.calendar.data.ProposalEntry
 import com.koshg.calendar.data.SexEntry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -13,18 +14,25 @@ import java.time.LocalDate
 private fun period(date: LocalDate): PeriodEntry =
     PeriodEntry(id = "p-$date", startDate = date.toString(), notes = "")
 
-private fun proposal(date: LocalDate, initiator: Initiator, accepted: Boolean, reason: String = ""): ProposalEntry =
+private fun proposal(
+    date: LocalDate,
+    initiator: Initiator,
+    accepted: Boolean,
+    reason: String = "",
+    answered: Boolean = true
+): ProposalEntry =
     ProposalEntry(
         id = "pr-$date-${initiator.storageValue}",
         date = date.toString(),
         initiator = initiator.storageValue,
         accepted = accepted,
+        answered = answered,
         declineReason = reason,
         notes = ""
     )
 
 private fun sex(date: LocalDate, initiator: Initiator): SexEntry =
-    SexEntry(id = "s-$date-${initiator.storageValue}", date = date.toString(), initiator = initiator.storageValue, orgasmCount = 0, notes = "")
+    SexEntry(id = "s-$date-${initiator.storageValue}", date = date.toString(), initiator = initiator.storageValue, myOrgasmCount = 0, partnerOrgasmCount = 0, notes = "")
 
 class InsightsCalculatorTest {
 
@@ -114,6 +122,66 @@ class InsightsCalculatorTest {
             today = today
         )
         assertNotNull(suggestion)
+    }
+
+    @Test
+    fun `computeProposalOutcomes counts a sex entry with no proposal as accepted`() {
+        val day = LocalDate.of(2026, 3, 1)
+        val outcomes = computeProposalOutcomes(
+            proposalEntries = emptyList(),
+            sexEntries = listOf(sex(day, Initiator.ME))
+        )
+        assertEquals(1, outcomes.accepted)
+        assertEquals(0, outcomes.declined)
+        assertEquals(1, outcomes.fromSex)
+    }
+
+    @Test
+    fun `computeProposalOutcomes counts several sex entries on one day once`() {
+        val day = LocalDate.of(2026, 3, 1)
+        val outcomes = computeProposalOutcomes(
+            proposalEntries = emptyList(),
+            sexEntries = listOf(sex(day, Initiator.ME), sex(day, Initiator.PARTNER))
+        )
+        assertEquals(1, outcomes.accepted)
+        assertEquals(1, outcomes.answered)
+    }
+
+    @Test
+    fun `computeProposalOutcomes leaves an explicit decline declined even with same-day sex`() {
+        val day = LocalDate.of(2026, 3, 1)
+        val outcomes = computeProposalOutcomes(
+            proposalEntries = listOf(proposal(day, Initiator.ME, accepted = false)),
+            sexEntries = listOf(sex(day, Initiator.ME))
+        )
+        assertEquals(0, outcomes.accepted)
+        assertEquals(1, outcomes.declined)
+        assertEquals(1, outcomes.answered)
+        assertEquals(0, outcomes.fromSex)
+    }
+
+    @Test
+    fun `computeProposalOutcomes resolves a pending proposal via same-day sex`() {
+        val day = LocalDate.of(2026, 3, 1)
+        val outcomes = computeProposalOutcomes(
+            proposalEntries = listOf(proposal(day, Initiator.ME, accepted = false, answered = false)),
+            sexEntries = listOf(sex(day, Initiator.ME))
+        )
+        assertEquals(1, outcomes.accepted)
+        assertEquals(0, outcomes.pending)
+        assertEquals(1, outcomes.fromSex)
+    }
+
+    @Test
+    fun `computeProposalOutcomes keeps a pending proposal pending without sex that day`() {
+        val day = LocalDate.of(2026, 3, 1)
+        val outcomes = computeProposalOutcomes(
+            proposalEntries = listOf(proposal(day, Initiator.ME, accepted = false, answered = false)),
+            sexEntries = listOf(sex(day.plusDays(3), Initiator.ME))
+        )
+        assertEquals(1, outcomes.pending)
+        assertEquals(1, outcomes.accepted)
+        assertEquals(1, outcomes.answered)
     }
 
     @Test

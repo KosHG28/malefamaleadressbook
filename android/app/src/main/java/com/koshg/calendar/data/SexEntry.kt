@@ -10,6 +10,9 @@ data class SexEntry(
     val date: String,
     /** [Initiator.storageValue]. */
     val initiator: String,
-    val orgasmCount: Int,
+    /** Counted per person rather than as one total for the encounter: "3 orgasms" says nothing
+     *  about whose they were, which is most of what makes the number worth logging. */
+    val myOrgasmCount: Int,
+    val partnerOrgasmCount: Int,
     val notes: String
 )

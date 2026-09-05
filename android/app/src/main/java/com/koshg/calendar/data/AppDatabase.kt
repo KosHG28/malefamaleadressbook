@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProposalEntry::class,
         MasturbationEntry::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,6 +87,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // The old single orgasmCount became this person's own count. That is a guess for
+                // rows logged before the split, but the useful one: the entry was written from
+                // this device, by the person using it.
+                db.execSQL("ALTER TABLE `sex_entries` RENAME COLUMN `orgasmCount` TO `myOrgasmCount`")
+                db.execSQL("ALTER TABLE `sex_entries` ADD COLUMN `partnerOrgasmCount` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -94,7 +104,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "calendar.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     // TRUNCATE (not the default WAL) so every commit lands fully in calendar.db
                     // itself, with no separate -wal/-shm sidecar file Android's Auto Backup
                     // (a plain file copy, no SQLite awareness) could snapshot mid-write.

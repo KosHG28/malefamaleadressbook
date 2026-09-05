@@ -33,6 +33,7 @@ import com.koshg.calendar.data.SexEntry
 import com.koshg.calendar.ui.theme.appColors
 import com.koshg.calendar.ui.theme.phaseColor
 import com.koshg.calendar.util.computeCorrelationInsights
+import com.koshg.calendar.util.computeProposalOutcomes
 import com.koshg.calendar.util.monthShortLabel
 import com.koshg.calendar.util.shortDateLabel
 import com.koshg.calendar.util.toLocalDateOrNull
@@ -96,7 +97,7 @@ fun HistoryScreen(
                 ) {
                     item { CycleLengthSection(periods, isIrregular) }
                     item { FrequencySection("Близость", sexEntries.map { it.date }, appColors.intimacy) }
-                    item { ProposalStatsSection(proposalEntries) }
+                    item { ProposalStatsSection(proposalEntries, sexEntries) }
                     item { FrequencySection("Мастурбация", masturbationEntries.map { it.date }, appColors.solo) }
                     item {
                         CorrelationInsightsSection(
@@ -269,22 +270,25 @@ private fun FrequencySection(title: String, dates: List<String>, color: Color) {
 }
 
 @Composable
-private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
+private fun ProposalStatsSection(proposals: List<ProposalEntry>, sexEntries: List<SexEntry>) {
     val appColors = appColors()
     SectionCard(title = "Предложения") {
-        if (proposals.isEmpty()) {
+        if (proposals.isEmpty() && sexEntries.isEmpty()) {
             Text(
                 "Записей пока нет.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = appColors.textSecondary
             )
         } else {
-            // Pending proposals have no outcome yet -- counting them into the denominator would
-            // permanently deflate the acceptance rate for however long they stay unanswered.
-            val answered = proposals.filter { it.answered }
-            val pendingCount = proposals.size - answered.size
-            val accepted = answered.count { it.accepted }
-            val total = answered.size
+            // A logged encounter counts as an accepted proposal even without a proposal row, and
+            // a still-pending proposal has no outcome to count at all -- see the rules on
+            // [computeProposalOutcomes].
+            val outcomes = remember(proposals, sexEntries) {
+                computeProposalOutcomes(proposals, sexEntries)
+            }
+            val pendingCount = outcomes.pending
+            val accepted = outcomes.accepted
+            val total = outcomes.answered
             if (total > 0) {
                 val percent = accepted * 100 / total
                 Text(
@@ -298,6 +302,13 @@ private fun ProposalStatsSection(proposals: List<ProposalEntry>) {
                     "Ожидает ответа: $pendingCount",
                     style = MaterialTheme.typography.bodySmall,
                     color = appColors.warning
+                )
+            }
+            if (outcomes.fromSex > 0) {
+                Text(
+                    "Из них по записям близости: ${outcomes.fromSex}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = appColors.textSecondary
                 )
             }
             Spacer(Modifier.height(8.dp))
