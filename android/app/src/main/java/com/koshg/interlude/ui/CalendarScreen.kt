@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
@@ -48,7 +49,6 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -347,7 +347,25 @@ private fun CalendarScreenContent(
     // Already carries the cycle-phase blend when "adaptive theme" is on -- appColors() applies it
     // for the whole app (see LocalAdaptivePhase), so there's nothing phase-specific to do here.
     val dynamicAccent = appColors.accent
-    val gradient = Brush.verticalGradient(listOf(appColors.gradientTop, appColors.gradientBottom))
+
+    // Which legend row is open, for as long as it is open. Owned here, above both the legends and
+    // the calendar, because all three have to agree: one row is explained, its days stay lit, and
+    // the screen behind them takes that row's color. Closing the row puts all three back.
+    var legendFocus by remember { mutableStateOf<LegendFocus?>(null) }
+    // Only a wash: the phase colors are strong enough that a fuller tint would make the dimmed
+    // calendar sitting on top of it harder to read, not easier, and the point is the calendar.
+    val focusTint = legendFocus?.tint()
+    val gradientTop by animateColorAsState(
+        focusTint?.let { lerp(appColors.gradientTop, it, LEGEND_FOCUS_BACKGROUND_TINT) }
+            ?: appColors.gradientTop,
+        label = "legendTintTop"
+    )
+    val gradientBottom by animateColorAsState(
+        focusTint?.let { lerp(appColors.gradientBottom, it, LEGEND_FOCUS_BACKGROUND_TINT) }
+            ?: appColors.gradientBottom,
+        label = "legendTintBottom"
+    )
+    val gradient = Brush.verticalGradient(listOf(gradientTop, gradientBottom))
 
     Box(modifier = Modifier.fillMaxSize().background(gradient)) {
         Scaffold(
@@ -472,6 +490,8 @@ private fun CalendarScreenContent(
                             masturbationDates = masturbationDates,
                             orgasmDates = orgasmDates,
                             haptics = haptics,
+                            legendFocus = legendFocus,
+                            onLegendFocusChange = { legendFocus = it },
                             onNewEntry = { activeSheet = ActiveSheet.New(it) },
                             onRangeSelected = { start, end -> activeSheet = ActiveSheet.PeriodRangeDraft(start, end) }
                         )
@@ -493,6 +513,8 @@ private fun CalendarScreenContent(
                                 masturbationDates = masturbationDates,
                                 orgasmDates = orgasmDates,
                                 haptics = haptics,
+                                legendFocus = legendFocus,
+                                onLegendFocusChange = { legendFocus = it },
                                 onNewEntry = { activeSheet = ActiveSheet.New(it) },
                                 onRangeSelected = { start, end -> activeSheet = ActiveSheet.PeriodRangeDraft(start, end) },
                                 modifier = Modifier
@@ -754,6 +776,8 @@ private fun CalendarMonthSection(
     masturbationDates: Set<String>,
     orgasmDates: Set<String>,
     haptics: Haptics,
+    legendFocus: LegendFocus?,
+    onLegendFocusChange: (LegendFocus?) -> Unit,
     onNewEntry: (LocalDate) -> Unit,
     onRangeSelected: (LocalDate, LocalDate) -> Unit,
     modifier: Modifier = Modifier
@@ -761,9 +785,9 @@ private fun CalendarMonthSection(
     Column(modifier = modifier) {
         val context = LocalContext.current
         var rangeSelectionMode by remember { mutableStateOf(false) }
-        // Which legend row is open, so the grid below can hold that phase up while it is. Lives
-        // here because the legend and the grid are siblings, and neither owns the other.
-        var phaseFocus by remember { mutableStateOf<PhaseFocus?>(null) }
+        // A legend that has been switched off in Settings cannot be explaining anything, so it
+        // must not leave the calendar dimmed on its way out.
+        LaunchedEffect(cycleState.legendVisibility) { onLegendFocusChange(null) }
         val baseMonth = remember { YearMonth.now() }
         val pagerPageCount = 2401 // ~100 years either side of baseMonth — plenty of headroom
         val pagerCenterPage = pagerPageCount / 2
@@ -813,7 +837,7 @@ private fun CalendarMonthSection(
                 MonthGrid(
                     viewMonth = month,
                     selectedDate = uiState.selectedDate,
-                    phaseFocus = phaseFocus,
+                    legendFocus = legendFocus,
                     eventsByDate = uiState.eventsByDate,
                     periods = cycleState.periods,
                     marginDays = cycleState.stats.appliedMarginDays,
@@ -846,10 +870,10 @@ private fun CalendarMonthSection(
         // Both legends are switchable in Settings -- on by default, since nothing else on a first
         // run explains what the colors mean, and off in one tap once they're committed to memory.
         if (cycleState.legendVisibility.phases) {
-            PhaseLegend(onFocusChange = { phaseFocus = it })
+            PhaseLegend(openFocus = legendFocus, onOpenFocusChange = onLegendFocusChange)
         }
         if (cycleState.legendVisibility.markers) {
-            MarkerLegend()
+            MarkerLegend(openFocus = legendFocus, onOpenFocusChange = onLegendFocusChange)
         }
 
         val proactiveSuggestion = remember(
@@ -1149,26 +1173,45 @@ private fun WeekdayHeader() {
  * one day the grid draws differently from the band around it (a lifted fill and a glow), so it
  * needs a legend row of its own, and that row has to be able to point at exactly that day.
  */
-private sealed interface PhaseFocus {
-    data class Phase(val phase: CyclePhase) : PhaseFocus
-    data object OvulationDay : PhaseFocus
+private sealed interface LegendFocus {
+    data class Phase(val phase: CyclePhase) : LegendFocus
+    data object OvulationDay : LegendFocus
+    data class Marker(val kind: MarkerKind) : LegendFocus
 }
 
 /** Whether a day belongs to what the legend is pointing at. The ovulation day stays lit under
  *  the fertile-window row too -- it is inside that band, and blanking it there would say the
  *  opposite. */
-private fun PhaseFocus.covers(phase: CyclePhase?, isOvulationDay: Boolean): Boolean = when (this) {
-    is PhaseFocus.Phase -> phase == this.phase
-    PhaseFocus.OvulationDay -> isOvulationDay
+private fun LegendFocus.covers(
+    phase: CyclePhase?,
+    isOvulationDay: Boolean,
+    marker: MarkerKind?
+): Boolean = when (this) {
+    is LegendFocus.Phase -> phase == this.phase
+    LegendFocus.OvulationDay -> isOvulationDay
+    is LegendFocus.Marker -> marker == this.kind
+}
+
+/** The color the screen tints toward while this row is open. The same color as the row's own
+ *  swatch, so the background says which row is open in the one channel the dimmed calendar has
+ *  given up. */
+@Composable
+private fun LegendFocus.tint(): Color {
+    val appColors = appColors()
+    val markerColors = LocalMarkerColors.current
+    return when (this) {
+        is LegendFocus.Phase -> appColors.phaseColor(phase)
+        LegendFocus.OvulationDay -> lerp(appColors.ovulatory, Color.White, OVULATION_DAY_LIFT)
+        is LegendFocus.Marker -> markerColors.colorFor(kind)
+    }
 }
 
 private data class LegendEntry(
     @StringRes val labelRes: Int,
     val color: Color,
     val tooltip: String,
-    /** What the grid should hold up while this row is open, or null for a row about something
-     *  the grid's phase colors don't say anything about (the marker legend's rows). */
-    val focus: PhaseFocus? = null
+    /** What the grid should hold up while this row is open. */
+    val focus: LegendFocus
 )
 
 /** A 2-column grid of color dots + labels, each tappable to reveal a short explanation below it
@@ -1178,18 +1221,17 @@ private data class LegendEntry(
 @Composable
 private fun ExpandableLegend(
     entries: List<LegendEntry>,
-    modifier: Modifier = Modifier,
-    onFocusChange: (PhaseFocus?) -> Unit = {}
+    openFocus: LegendFocus?,
+    onOpenFocusChange: (LegendFocus?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val appColors = appColors()
     val haptics = LocalHaptics.current
-    var expandedIndex by remember(entries) { mutableStateOf<Int?>(null) }
-    // Reported rather than hoisted: which row is open is this composable's own business, and the
-    // grid only needs to know what the open row is about. Driving it from an effect keeps the two
-    // from ever disagreeing, including when the legend leaves composition and clears itself.
-    val openFocus = expandedIndex?.let { entries.getOrNull(it)?.focus }
-    LaunchedEffect(openFocus) { onFocusChange(openFocus) }
-    DisposableEffect(Unit) { onDispose { onFocusChange(null) } }
+    // Deliberately holds no open-row state of its own. The open row and the calendar it dims are
+    // one thing, so they are one value, owned above both legends -- otherwise the phase legend and
+    // the marker legend would each keep their own idea of what is open, and opening a row in one
+    // would leave a stale explanation and a stale bold label in the other.
+    val expandedIndex = entries.indexOfFirst { it.focus == openFocus }.takeIf { it >= 0 }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -1208,7 +1250,7 @@ private fun ExpandableLegend(
                             .weight(1f)
                             .clickable {
                                 haptics.perform(HapticEvent.Tap)
-                                expandedIndex = if (expandedIndex == index) null else index
+                                onOpenFocusChange(if (expandedIndex == index) null else entry.focus)
                             }
                     ) {
                         Box(
@@ -1255,7 +1297,7 @@ private fun ExpandableLegend(
 }
 
 @Composable
-private fun PhaseLegend(onFocusChange: (PhaseFocus?) -> Unit) {
+private fun PhaseLegend(openFocus: LegendFocus?, onOpenFocusChange: (LegendFocus?) -> Unit) {
     val appColors = appColors()
     val context = LocalContext.current
     val entries = remember(appColors, context) {
@@ -1264,7 +1306,7 @@ private fun PhaseLegend(onFocusChange: (PhaseFocus?) -> Unit) {
                 labelRes = phase.labelRes,
                 color = appColors.phaseColor(phase),
                 tooltip = context.phaseTipForMen(phase),
-                focus = PhaseFocus.Phase(phase)
+                focus = LegendFocus.Phase(phase)
             )
         // The ovulation day rides along after the four phases: the grid gives it a look of its
         // own, so leaving it out of the legend left the one cell that stands out as the one cell
@@ -1273,13 +1315,14 @@ private fun PhaseLegend(onFocusChange: (PhaseFocus?) -> Unit) {
             labelRes = R.string.phase_ovulation_day,
             color = lerp(appColors.ovulatory, Color.White, OVULATION_DAY_LIFT),
             tooltip = context.getString(R.string.legend_ovulation_day_tip),
-            focus = PhaseFocus.OvulationDay
+            focus = LegendFocus.OvulationDay
         )
     }
     ExpandableLegend(
         entries,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        onFocusChange = onFocusChange
+        openFocus = openFocus,
+        onOpenFocusChange = onOpenFocusChange,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
     )
 }
 
@@ -1287,39 +1330,49 @@ private fun PhaseLegend(onFocusChange: (PhaseFocus?) -> Unit) {
  *  room for color and weight, not a label, so a first-time (especially male) reader has nowhere
  *  else to learn that pink means sex and green means solo. */
 @Composable
-private fun MarkerLegend() {
+private fun MarkerLegend(openFocus: LegendFocus?, onOpenFocusChange: (LegendFocus?) -> Unit) {
     val markerColors = LocalMarkerColors.current
     // Built straight rather than inside remember: stringResource is itself a composable read, so
     // it cannot run in remember's lambda, and the list is five entries -- not worth caching.
     val entries =
         listOf(
             LegendEntry(
-                MarkerKind.SEX.labelRes,
-                markerColors.sex,
-                stringResource(R.string.legend_sex_tip)
+                labelRes = MarkerKind.SEX.labelRes,
+                color = markerColors.sex,
+                tooltip = stringResource(R.string.legend_sex_tip),
+                focus = LegendFocus.Marker(MarkerKind.SEX)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_ACCEPTED.labelRes,
-                markerColors.proposalAccepted,
-                stringResource(R.string.legend_accepted_tip)
+                labelRes = MarkerKind.PROPOSAL_ACCEPTED.labelRes,
+                color = markerColors.proposalAccepted,
+                tooltip = stringResource(R.string.legend_accepted_tip),
+                focus = LegendFocus.Marker(MarkerKind.PROPOSAL_ACCEPTED)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_DECLINED.labelRes,
-                markerColors.proposalDeclined,
-                stringResource(R.string.legend_declined_tip)
+                labelRes = MarkerKind.PROPOSAL_DECLINED.labelRes,
+                color = markerColors.proposalDeclined,
+                tooltip = stringResource(R.string.legend_declined_tip),
+                focus = LegendFocus.Marker(MarkerKind.PROPOSAL_DECLINED)
             ),
             LegendEntry(
-                MarkerKind.PROPOSAL_PENDING.labelRes,
-                markerColors.proposalPending,
-                stringResource(R.string.legend_pending_tip)
+                labelRes = MarkerKind.PROPOSAL_PENDING.labelRes,
+                color = markerColors.proposalPending,
+                tooltip = stringResource(R.string.legend_pending_tip),
+                focus = LegendFocus.Marker(MarkerKind.PROPOSAL_PENDING)
             ),
             LegendEntry(
-                MarkerKind.SOLO.labelRes,
-                markerColors.solo,
-                stringResource(R.string.legend_solo_tip)
+                labelRes = MarkerKind.SOLO.labelRes,
+                color = markerColors.solo,
+                tooltip = stringResource(R.string.legend_solo_tip),
+                focus = LegendFocus.Marker(MarkerKind.SOLO)
             )
         )
-    ExpandableLegend(entries, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+    ExpandableLegend(
+        entries,
+        openFocus = openFocus,
+        onOpenFocusChange = onOpenFocusChange,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+    )
 }
 
 /** A dismissible, non-alarming nudge card -- see [computeProactiveSuggestion] for the triggers. */
@@ -1372,7 +1425,7 @@ private fun SuggestionBanner(suggestion: ProactiveSuggestion, onDismiss: () -> U
 private fun MonthGrid(
     viewMonth: YearMonth,
     selectedDate: LocalDate,
-    phaseFocus: PhaseFocus?,
+    legendFocus: LegendFocus?,
     eventsByDate: Map<String, List<CalendarEvent>>,
     periods: List<PeriodEntry>,
     marginDays: Int,
@@ -1415,7 +1468,7 @@ private fun MonthGrid(
     // how light a fill reads, so the white day numbers stay correct on a dimmed day and nothing
     // has to switch ink halfway through a spotlight.
     val unfocusedDim by animateFloatAsState(
-        targetValue = if (phaseFocus != null) LEGEND_UNFOCUSED_DRAIN else 0f,
+        targetValue = if (legendFocus != null) LEGEND_UNFOCUSED_DRAIN else 0f,
         label = "legendFocusDim"
     )
 
@@ -1546,7 +1599,7 @@ private fun MonthGrid(
                         isDragHighlighted = dragRange?.let { info.date in it } == true,
                         // Zero for every day while nothing is focused, so the grid outside this
                         // feature looks exactly as it did.
-                        focusDim = if (phaseFocus?.covers(info.phase, info.isOvulationDay) == false) {
+                        focusDim = if (legendFocus?.covers(info.phase, info.isOvulationDay, marker) == false) {
                             unfocusedDim
                         } else {
                             0f
@@ -1620,6 +1673,11 @@ private const val MAX_TOTAL_DRAIN = 0.5f
  *  row and takes back by tapping it again. Not 1.0 -- a fully grey calendar would hide the phase
  *  boundaries the highlighted stretch is supposed to be seen against. */
 private const val LEGEND_UNFOCUSED_DRAIN = 0.88f
+
+/** How far the screen behind the calendar leans toward the open legend row's own color. Small on
+ *  purpose: the background's job here is to confirm which row is open, and it is read past, not
+ *  read -- a strong tint would fight the dimmed grid drawn on top of it. */
+private const val LEGEND_FOCUS_BACKGROUND_TINT = 0.16f
 
 /** An adjacent month's day number, on its by-then muted capsule. Dimmer than the current month's
  *  but not the 0.4 the fill itself used to carry -- the drained capsule says "other month" on its
@@ -1827,7 +1885,12 @@ private fun DayCell(
         // stay as the small dots below the cell, since those are a different, possibly
         // multi-valued kind of marker.
         val markerColors = LocalMarkerColors.current
-        val markerColor = markerKind?.let { markerColors.colorFor(it) }
+        // The ring recedes with its day under a legend spotlight, and only then: the comment
+        // below is about the grid's ambient fades, which a logged entry should indeed ignore. A
+        // spotlight is not one of those -- under "Solo" every ring that isn't a solo ring has to
+        // go, or the answer to the question the row asked is still buried in the others.
+        val markerColor = markerKind?.let { markerColors.colorFor(it).drained(focusDim) }
+        val haloAlpha = 0.85f * (1f - focusDim)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
                 // A thin white halo sits just behind the colored marker ring so it stays legible
@@ -1840,7 +1903,7 @@ private fun DayCell(
                     Box(
                         modifier = Modifier
                             .size(27.dp)
-                            .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = haloAlpha), CircleShape)
                     )
                 }
                 // Every marker ring is the same thickness and full strength -- only the color

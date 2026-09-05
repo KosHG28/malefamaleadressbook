@@ -72,24 +72,48 @@
         <item>Her body is recovering, so there may be less energy than usual. Quietly taking over the household chores is real support, no speech required.</item>
         <item>Discomfort and irritability these days are physiology, not about you. Don\'t take sharpness personally.</item>
         <item>A good moment to offer a hot water bottle or a painkiller if she forgot, rather than waiting to be asked.</item>
+        <item>Ask what would help instead of guessing — getting it right the first time counts for more than scale in these days.</item>
+        <item>Sleep is often broken and tiredness adds up. Letting her sleep in can be the most useful thing on offer.</item>
+        <item>Keep plans loose: what sounded good yesterday can feel like a burden today, and that is normal.</item>
+        <item>Warm food, water and less fuss around her — simple things work better here than elaborate gestures.</item>
+        <item>Closeness is not off the table, but the opening move is better left to her this week.</item>
+        <item>If she turns down a plan, it is about how she feels, not about her interest in you.</item>
     </string-array>
     <string-array name="phase_tips_follicular">
         <item>Energy and mood usually climb. Good time for active dates, new ideas and plans together.</item>
         <item>Drive and focus are often on the rise — a convenient moment to talk through shared plans or start something new together.</item>
         <item>Mood is usually steady and open. A good time for conversations you have been putting off.</item>
         <item>A good window for something active — a walk, sport, a trip. There is usually energy to spare.</item>
+        <item>Openness to new things tends to be higher — a good moment to suggest something she has turned down before.</item>
+        <item>Energy comes back gradually rather than all at once: the first days after a period can still be flat.</item>
+        <item>A good window for talking about the future — plans land more easily than they do late in the cycle.</item>
+        <item>Doing something together beats simply being nearby: cooking, a trip out, something with your hands.</item>
+        <item>If you want to suggest somewhere loud and crowded, the odds are better now than usual.</item>
+        <item>Compliments tend to land in this phase — the mood is receptive to them.</item>
     </string-array>
     <string-array name="phase_tips_ovulatory">
         <item>Often the peak of energy and libido. A fitting moment for romance and closeness — but go by how she feels right now, not by the phase alone.</item>
         <item>Confidence and sociability are frequently at their highest these days — a good time for something memorable together.</item>
         <item>The peak of the cycle guarantees no mood — it only shifts the odds slightly. The final word is always how she actually feels.</item>
         <item>If it has been a while since a proper date, these days are statistically a better bet for suggesting one.</item>
+        <item>Attention to appearance and the wish to be noticed often show more — a compliment that lands is worth extra now.</item>
+        <item>Desire can run higher, and so can irritation at anything clumsy: rushing does not help here.</item>
+        <item>Good days to get out of the house together rather than to have people over.</item>
+        <item>If you are trying to conceive, these days are the window.</item>
+        <item>If you are not, these are the days protection matters most.</item>
+        <item>There is plenty of energy, but it is finite: better not to stretch an active day into the night.</item>
     </string-array>
     <string-array name="phase_tips_luteal">
         <item>Mood swings and PMS are possible towards the end of this phase. More patience, less criticism — a quiet evening usually goes down better than an ambitious plan.</item>
         <item>Cravings, tiredness and sensitivity to small things are ordinary companions of this phase, not grounds for an argument.</item>
         <item>A good time to slow down together — fewer loud plans, more quiet time side by side.</item>
         <item>If she is suddenly sharper or more closed off than usual, that is more often the phase than anything about you.</item>
+        <item>Sleep and regular meals take the edge off most of PMS — sometimes feeding her and not arguing is the whole job.</item>
+        <item>Small household help without being asked weighs more than words in these days.</item>
+        <item>Contentious conversations are better left a few days: the same subject goes down calmly early in the cycle.</item>
+        <item>Bloating and heaviness are ordinary late in this phase, and jokes about it never land.</item>
+        <item>Quiet company often beats entertainment: be available without asking for attention.</item>
+        <item>If there is something about the two of you to discuss, the start of the next cycle suits it better.</item>
     </string-array>
     <!-- Correlation findings. %1$s is the phase name, %2$d a percentage. -->
     <string name="insight_partner_initiates">During %1$s, the partner is more often the one initiating (%2$d%% of the time).</string>
