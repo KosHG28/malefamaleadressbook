@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -125,14 +126,18 @@ fun YearOverviewScreen(
                 }
             }
 
+            val shownYear = year
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().adaptiveContentWidth(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(12, key = { it }) { monthIndex ->
-                    val month = YearMonth.of(year, monthIndex + 1)
+                // Keyed by year as well as month: with a bare month index, stepping the year
+                // reused each slot's composition for a completely different month, which is
+                // exactly the reuse the crash below rode in on.
+                items(12, key = { "$shownYear-$it" }) { monthIndex ->
+                    val month = YearMonth.of(shownYear, monthIndex + 1)
                     MonthMosaic(
                         month = month,
                         cycleModel = cycleModel,
@@ -160,6 +165,9 @@ fun YearOverviewScreen(
 private const val MOSAIC_RING_FRACTION = 0.56f
 private const val MOSAIC_RING_HALO_FRACTION = 0.64f
 private val MOSAIC_RING_WIDTH = 2.dp
+
+/** Columns in the mosaic -- one per weekday, so a column is the same weekday all year. */
+private const val DAYS_PER_WEEK = 7
 
 /** One day of the mosaic: what phase it fell in, and which marker ring (if any) it earned. */
 private data class MosaicDay(val phase: CyclePhase?, val marker: MarkerKind?)
@@ -207,53 +215,68 @@ private fun MonthMosaic(
             color = appColors.textPrimary
         )
         Spacer(Modifier.height(6.dp))
-        cells.chunked(7).forEach { week ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                week.forEach { cell ->
-                    if (cell == null) {
-                        // A weekday column this month hasn't reached yet -- holds the width so the
-                        // days after it stay in their own columns.
-                        Spacer(Modifier.weight(1f))
-                        return@forEach
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
+        // Every row is exactly seven cells and every cell emits exactly the same three boxes; a
+        // leading blank differs from a real day only in its colors. Compose matches a recomposed
+        // child against the previous one by position, so a loop that emitted a bare Spacer for one
+        // cell and a Box-with-two-rings for the next handed the applier two different node shapes
+        // for one slot. Paging years fast enough to recompose a row that was still being reused
+        // then inserted a child past the end of a seven-child row -- surfacing as an arraycopy with
+        // a negative length inside LayoutNode.insertAt, nowhere near this file. A uniform shape
+        // makes that impossible rather than merely unlikely, and costs three transparent borders.
+        cells.chunked(DAYS_PER_WEEK).forEachIndexed { weekIndex, week ->
+            key(weekIndex) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    repeat(DAYS_PER_WEEK) { dayOfWeek ->
+                        val cell = week.getOrNull(dayOfWeek)
+                        val marker = cell?.marker
+                        val fill = when {
+                            cell == null -> Color.Transparent
+                            else -> cell.phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground
+                        }
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                // Percent-based, like every other round element in the app (legend
-                                // dots, day-cell pills) -- a plain square read as out of place here.
-                                .clip(RoundedCornerShape(50))
-                                .background(
-                                    cell.phase?.let { appColors.phaseColor(it) } ?: appColors.warmBackground
-                                )
-                        )
-                        // Inset rather than drawn on the day's own edge: with only 2dp between
-                        // neighbours, edge rings on two marked days in a row would touch and read
-                        // as one shape. The white halo does the same job as the month grid's --
-                        // keeps the ring visible when its color sits close to the fill beneath it.
-                        cell.marker?.let { marker ->
+                                .weight(1f)
+                                .aspectRatio(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    // Percent-based, like every other round element in the app
+                                    // (legend dots, day-cell pills) -- a plain square read as out
+                                    // of place here.
+                                    .clip(RoundedCornerShape(50))
+                                    .background(fill)
+                            )
+                            // Inset rather than drawn on the day's own edge: with only 2dp between
+                            // neighbours, edge rings on two marked days in a row would touch and
+                            // read as one shape. The white halo does the same job as the month
+                            // grid's -- keeps the ring visible when its color sits close to the
+                            // fill beneath it.
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize(MOSAIC_RING_HALO_FRACTION)
-                                    .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                                    .border(
+                                        1.dp,
+                                        if (marker == null) Color.Transparent else Color.White.copy(alpha = 0.85f),
+                                        CircleShape
+                                    )
                             )
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize(MOSAIC_RING_FRACTION)
-                                    .border(MOSAIC_RING_WIDTH, markerColors.colorFor(marker), CircleShape)
+                                    .border(
+                                        MOSAIC_RING_WIDTH,
+                                        if (marker == null) Color.Transparent else markerColors.colorFor(marker),
+                                        CircleShape
+                                    )
                             )
                         }
                     }
                 }
-                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
             }
             Spacer(Modifier.height(2.dp))
         }

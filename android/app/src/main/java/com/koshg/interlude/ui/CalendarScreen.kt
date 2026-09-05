@@ -1179,9 +1179,12 @@ private fun ExpandableLegend(entries: List<LegendEntry>, modifier: Modifier = Mo
                             color = appColors.textSecondary
                         )
                     }
-                    if (row.size == 1) {
-                        Spacer(Modifier.weight(1f))
-                    }
+                }
+                // A row-level filler for the odd last entry, so its cell keeps half the width
+                // rather than stretching. Outside the cell loop, which therefore emits exactly
+                // one shape per iteration -- see MonthMosaic for what a loop that doesn't can do.
+                if (row.size == 1) {
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
